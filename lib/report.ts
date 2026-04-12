@@ -1,25 +1,30 @@
 import { ReportInput } from "@/types";
 import { formatStatsForPrompt } from "./moneypuck";
 
-export function buildReportPrompt(input: ReportInput): string {
+interface ReportPrompt {
+  prompt: string;
+  titlePrefill: string;
+}
+
+export function buildReportPrompt(input: ReportInput): ReportPrompt {
   const myTeam  = input.myTeamSide === "home" ? input.homeTeam.name : input.awayTeam.name;
   const oppTeam = input.myTeamSide === "home" ? input.awayTeam.name : input.homeTeam.name;
+  const venue   = input.myTeamSide === "home" ? "Home — American Airlines Center" : "Away";
 
-  const statsBlock = `
---- OUR TEAM (${myTeam}) ---
+  const statsBlock = `OUR TEAM (${myTeam})
 ${formatStatsForPrompt(input.myTeamStats)}
 
---- OPPONENT (${oppTeam}) ---
+OPPONENT (${oppTeam})
 ${formatStatsForPrompt(input.opponentStats)}
 
---- OUR RECENT RESULTS ---
+OUR LAST 5 GAMES
 ${input.recentGames}
-${input.additionalContext ? `\n--- ADDITIONAL CONTEXT ---\n${input.additionalContext}` : ""}`.trim();
+${input.additionalContext ? `\nSCOUT NOTES\n${input.additionalContext}` : ""}`.trim();
 
   if (input.reportType === "pregame") {
-    return buildPregamePrompt(myTeam, oppTeam, input, statsBlock);
+    return buildPregamePrompt(myTeam, oppTeam, venue, input, statsBlock);
   } else {
-    return buildPostgamePrompt(myTeam, oppTeam, input, statsBlock);
+    return buildPostgamePrompt(myTeam, oppTeam, venue, input, statsBlock);
   }
 }
 
@@ -27,93 +32,109 @@ ${input.additionalContext ? `\n--- ADDITIONAL CONTEXT ---\n${input.additionalCon
 function buildPregamePrompt(
   myTeam: string,
   oppTeam: string,
+  venue: string,
   input: ReportInput,
   statsBlock: string
-): string {
-  return `You are a professional NHL analytics coach. Write a detailed pre-game scouting report for the ${myTeam} coaching staff.
+): ReportPrompt {
+  const titlePrefill = `# Pre-Game Report: ${myTeam} vs ${oppTeam}\n*${input.gameDate} · ${venue}*`;
 
-Game: ${myTeam} (${input.myTeamSide}) vs ${oppTeam} — ${input.gameDate}
+  const prompt = `GAME: ${myTeam} (${input.myTeamSide}) vs ${oppTeam} · ${input.gameDate}
 
 ${statsBlock}
 
-Write a professional scouting report with the sections below. Be direct and specific — use the actual numbers. No vague language.
+---
 
-# Pre-Game Report: ${myTeam} vs ${oppTeam}
-## ${input.gameDate}
+The report title is already written. Begin your response immediately with 2–3 sentences of executive summary — NO section heading before it, just the prose. Then continue with the sections below.
 
-### Executive Summary
-2–3 sentences. The headline story of this matchup based on the data.
+Copy every ## and ### heading exactly as written. Replace content in <angle brackets> with real analysis. Use **bold** for key numbers and names.
 
-### Opponent Tendencies
-Analyze ${oppTeam} using their advanced stats. What are they good at? Where are they vulnerable? Focus on xGoals%, Corsi%, high danger shots, and special teams numbers.
+<2–3 sentence executive summary — the single biggest data story of this matchup. Direct. No hedging.>
 
-### Our Strengths to Exploit
-Where do we have a measurable edge? Reference the stat differentials specifically.
+## ${oppTeam} Breakdown
 
-### Key Matchup Concerns
-Where does ${oppTeam} hold an advantage? What must we neutralize?
+### What They Do Well
+<One paragraph. Every claim backed by a specific number from the stats above.>
 
-### Special Teams Focus
-PP% and PK% comparison. Specific tactical recommendations for tonight.
+### Where They're Exploitable
+<One paragraph. Every claim backed by a specific number from the stats above.>
 
-### Line Deployment Recommendations
-Which line types should get elevated ice time in this matchup and why. Tie it to the data.
+## Our Strengths
+<The measurable edges ${myTeam} holds. Cite the differentials. If an edge is slim or nonexistent, say so plainly.>
 
-### Win Probability Assessment
-Honest assessment based on xGoals differential and possession metrics. What do the numbers say?
+## Threat Assessment
+<Where ${oppTeam} is most dangerous tonight. What specifically must be neutralized. Tied to the data.>
 
-### Keys to Victory
-Exactly 3 bullet points. The most critical things we need to do to win.
+## Special Teams
 
-Tone: confident, direct, coach-facing. Internal document. No hedging.`;
+### Power Play
+<Tactical notes for ${myTeam}'s power play against this opponent's ${input.opponentStats.penaltyKillPct.toFixed(1)}% penalty kill.>
+
+### Penalty Kill
+<Tactical notes for ${myTeam}'s penalty kill against this opponent's ${input.opponentStats.powerPlayPct.toFixed(1)}% power play.>
+
+## Deployment Notes
+<Specific ice time and matchup recommendations tied to the data.>
+
+## Win Probability
+<Write "${myTeam}: XX%" on its own line, where XX is your probability estimate. Then exactly two sentences of rationale. Nothing else in this section.>
+
+## Keys to Victory
+- <Key 1: specific and actionable, tied to the data>
+- <Key 2: specific and actionable, tied to the data>
+- <Key 3: specific and actionable, tied to the data>`;
+
+  return { prompt, titlePrefill };
 }
 
 // ── Post-game ──────────────────────────────────────────────────────────────
 function buildPostgamePrompt(
   myTeam: string,
   oppTeam: string,
+  venue: string,
   input: ReportInput,
   statsBlock: string
-): string {
-  const score = input.finalScore
-    ? `Final Score: ${myTeam} ${input.finalScore.myTeam} – ${input.finalScore.opponent} ${oppTeam} (${input.finalScore.myTeam > input.finalScore.opponent ? "WIN" : "LOSS"})`
-    : "";
+): ReportPrompt {
+  const resultLine = input.finalScore
+    ? `${myTeam} ${input.finalScore.myTeam}, ${oppTeam} ${input.finalScore.opponent} — ${input.finalScore.myTeam > input.finalScore.opponent ? "WIN" : "LOSS"}`
+    : "Score not recorded";
 
-  return `You are a professional NHL analytics coach. Write a post-game debrief report for the ${myTeam} coaching staff.
+  const titlePrefill = `# Post-Game Debrief: ${myTeam} vs ${oppTeam}\n*${input.gameDate} · ${venue} · ${resultLine}*`;
 
-Game: ${myTeam} (${input.myTeamSide}) vs ${oppTeam} — ${input.gameDate}
-${score}
-${input.gameNotes ? `\nGame Notes from Coach:\n${input.gameNotes}\n` : ""}
+  const prompt = `GAME: ${myTeam} (${input.myTeamSide}) vs ${oppTeam} · ${input.gameDate}
+RESULT: ${resultLine}
+${input.gameNotes ? `\nCOACH NOTES: ${input.gameNotes}\n` : ""}
 ${statsBlock}
 
-Write a professional post-game debrief with the sections below. Be direct, honest, and specific. This is an internal document — don't sugarcoat.
+---
 
-# Post-Game Debrief: ${myTeam} vs ${oppTeam}
-## ${input.gameDate}${score ? ` · ${score}` : ""}
+The report title is already written. Begin your response immediately with 2–3 sentences of result summary — NO section heading before it, just the prose. Then continue with the sections below.
 
-### Result Summary
-2–3 sentences. What happened and what does the result mean in context of the season stats?
+Copy every ## and ### heading exactly as written. Replace content in <angle brackets> with real analysis. Use **bold** for key numbers and names.
 
-### What Worked
-Specific things we executed well tonight. Tie observations to the pre-existing stat strengths where relevant.
+<2–3 sentence result summary — what happened and what it means in context of season stats.>
 
-### What Didn't Work
-Honest breakdown of breakdowns. Where did we deviate from our game plan or statistical identity?
+## What Worked
+<Specific executions tied to statistical strengths. Cite numbers. If nothing worked, say so plainly.>
 
-### Special Teams Review
-How did the PP and PK perform? Any adjustments needed?
+## What Didn't Work
+<Honest breakdown. Where did the team deviate from its identity? No excuses.>
 
-### Individual Performances
-Flag any standout positive or negative individual performances worth noting for tomorrow's session.
+## Special Teams Review
+<How did the PP and PK perform? Specific percentages and opportunities. What needs to change?>
 
-### Opponent Assessment Update
-Did ${oppTeam} perform as their stats suggested? Any new tendencies observed that should update our scouting file?
+## Individual Standouts
+<Positive or negative individual performances worth addressing. Name names, cite numbers.>
 
-### Adjustments for Next Game
-3–5 specific, actionable adjustments based on what we saw tonight.
+## Opponent Assessment Update
+<Did ${oppTeam} perform as their stats suggested? Any new tendencies to add to the scouting file?>
 
-### Takeaway
-One paragraph. The honest bottom line on this game and what it means going forward.
+## Adjustments for Next Game
+1. <Specific, actionable change>
+2. <Specific, actionable change>
+3. <Specific, actionable change>
 
-Tone: direct, no-nonsense, coach-facing. This goes to coaching staff only.`;
+## Takeaway
+<One paragraph. The honest bottom line and what it means going forward.>`;
+
+  return { prompt, titlePrefill };
 }

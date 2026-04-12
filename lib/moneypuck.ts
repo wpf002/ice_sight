@@ -1,112 +1,106 @@
+/**
+ * Team statistics — sourced from the NHL's official stats REST API.
+ * Previously used MoneyPuck CSVs, but that source requires a data license.
+ * All numbers here are real NHL data: PP%, PK%, goals/game, shots/game, etc.
+ *
+ * Advanced possession metrics (Corsi%, xGoals%) aren't available from the NHL
+ * API, so we use shots% as a proxy, clearly labelled.
+ */
 import { TeamAdvancedStats } from "@/types";
 
-const SEASON = "2023-2024";
-const CSV_URL = `https://moneypuck.com/moneypuck/playerData/seasonSummary/${SEASON}/regular/teams.csv`;
+const NHL_WEB   = "https://api-web.nhle.com/v1";
+const NHL_STATS = "https://api.nhle.com/stats/rest/en";
 
 let cache: TeamAdvancedStats[] | null = null;
 
-// ── Column alias map ───────────────────────────────────────────────────────
-// MoneyPuck changes column names between seasons. We try multiple candidates
-// and take the first match found in the actual header row.
-const COL = {
-  team:               ["team"],
-  gamesPlayed:        ["games_played", "gamesPlayed", "GP"],
-  xGoalsPct:          ["xGoalsPercentage", "xGF%", "xGoals%"],
-  corsiPct:           ["corsiPercentage", "CF%", "Corsi%"],
-  fenwickPct:         ["fenwickPercentage", "FF%", "Fenwick%"],
-  shotsFor:           ["shotsOnGoalFor", "SF", "shotsFor"],
-  shotsAgainst:       ["shotsOnGoalAgainst", "SA", "shotsAgainst"],
-  goalsFor:           ["goalsFor", "GF"],
-  goalsAgainst:       ["goalsAgainst", "GA"],
-  xGoalsFor:          ["xGoalsFor", "xGF"],
-  xGoalsAgainst:      ["xGoalsAgainst", "xGA"],
-  hdShotsFor:         ["highDangerShotsFor", "HDSF"],
-  hdShotsAgainst:     ["highDangerShotsAgainst", "HDSA"],
-  ppGoalsFor:         ["powerPlayGoalsFor", "PPG", "ppGoalsFor"],
-  ppOppsFor:          ["powerPlayOpportunitiesFor", "PPO", "ppOppsFor"],
-  ppGoalsAgainst:     ["powerPlayGoalsAgainst", "PPGA"],
-  pkOppsAgainst:      ["penaltyKillOpportunitiesAgainst", "PKO", "pkOppsAgainst"],
-};
+// Derive NHL season ID string (e.g. "20252026") from the current date.
+// The season starts in October and spans two calendar years.
+function currentSeasonId(): string {
+  const now = new Date();
+  const month = now.getMonth() + 1; // 1-indexed
+  const year = now.getFullYear();
+  const startYear = month >= 10 ? year : year - 1;
+  return `${startYear}${startYear + 1}`;
+}
 
-function buildIndexMap(headers: string[]): Record<string, number> {
-  const map: Record<string, number> = {};
-  for (const [key, candidates] of Object.entries(COL)) {
-    for (const c of candidates) {
-      const i = headers.findIndex((h) => h.trim() === c);
-      if (i !== -1) { map[key] = i; break; }
-    }
+// Build a map from team full name → abbreviation using the NHL standings.
+async function buildNameToAbbrevMap(): Promise<Record<string, string>> {
+  const res = await fetch(`${NHL_WEB}/standings/now`, { next: { revalidate: 3600 } });
+  if (!res.ok) throw new Error(`NHL standings fetch failed: ${res.status}`);
+  const data = await res.json();
+
+  const map: Record<string, string> = {};
+  for (const t of data.standings as Record<string, unknown>[]) {
+    const abbrev = (t.teamAbbrev as { default: string }).default;
+    const place  = (t.placeName  as { default: string }).default ?? "";
+    const common = (t.teamName   as { default: string }).default ?? "";
+    const full   = common.startsWith(place) ? common : `${place} ${common}`;
+    map[full.toLowerCase()] = abbrev.toUpperCase();
   }
   return map;
-}
-
-function safeFloat(cols: string[], idx: number | undefined): number {
-  if (idx === undefined || idx < 0) return 0;
-  return parseFloat(cols[idx] ?? "0") || 0;
-}
-
-function safeInt(cols: string[], idx: number | undefined): number {
-  if (idx === undefined || idx < 0) return 0;
-  return parseInt(cols[idx] ?? "0") || 0;
 }
 
 export async function getAllTeamStats(): Promise<TeamAdvancedStats[]> {
   if (cache) return cache;
 
-  const res = await fetch(CSV_URL, { next: { revalidate: 3600 } });
-  if (!res.ok) throw new Error(`MoneyPuck fetch failed: ${res.status}`);
+  const season = currentSeasonId();
+  const cayenne = encodeURIComponent(`seasonId=${season} and gameTypeId=2`);
 
-  const csv   = await res.text();
-  const lines = csv.trim().split("\n");
-  if (lines.length < 2) throw new Error("MoneyPuck CSV empty");
+  const [standingsMap, summaryRes] = await Promise.all([
+    buildNameToAbbrevMap(),
+    fetch(`${NHL_STATS}/team/summary?cayenneExp=${cayenne}&limit=40`, {
+      next: { revalidate: 3600 },
+    }),
+  ]);
 
-  const headers = lines[0].split(",");
-  const idx     = buildIndexMap(headers);
+  if (!summaryRes.ok) throw new Error(`NHL stats summary fetch failed: ${summaryRes.status}`);
+  const summaryData = await summaryRes.json();
 
-  const stats: TeamAdvancedStats[] = lines.slice(1)
-    .filter((l) => l.trim())
-    .map((line) => {
-      const cols = line.split(",");
-      const gp   = safeInt(cols, idx.gamesPlayed) || 1;
+  const stats: TeamAdvancedStats[] = (summaryData.data as Record<string, unknown>[]).map((t) => {
+    const fullName = (t.teamFullName as string).toLowerCase();
+    const abbrev = standingsMap[fullName] ?? "???";
 
-      const ppGoalsFor    = safeFloat(cols, idx.ppGoalsFor);
-      const ppOppsFor     = safeFloat(cols, idx.ppOppsFor) || 1;
-      const ppGoalsAgainst = safeFloat(cols, idx.ppGoalsAgainst);
-      const pkOppsAgainst  = safeFloat(cols, idx.pkOppsAgainst) || 1;
+    const gp              = t.gamesPlayed as number;
+    const shotsForPerGame = t.shotsForPerGame as number;
+    const shotsAgtPerGame = t.shotsAgainstPerGame as number;
+    const totalShots      = shotsForPerGame * gp;
+    const totalShotsAgt   = shotsAgtPerGame * gp;
+    // Shots% as a proxy for possession (directionally correct, not exact Corsi)
+    const shotsPct = (totalShots / (totalShots + totalShotsAgt)) * 100;
 
-      // xGoals% from MoneyPuck is already a 0–1 decimal; multiply by 100
-      const xGPct = safeFloat(cols, idx.xGoalsPct);
-      const cPct  = safeFloat(cols, idx.corsiPct);
-      const fPct  = safeFloat(cols, idx.fenwickPct);
+    const ppPct = (t.powerPlayPct as number) * 100;  // API stores as 0-1 decimal
+    const pkPct = (t.penaltyKillPct as number) * 100;
 
-      return {
-        team:                  cols[idx.team ?? 0]?.trim() ?? "???",
-        gamesPlayed:           gp,
-        xGoalsPercentage:      xGPct < 2 ? xGPct * 100 : xGPct,   // normalise if decimal
-        corsiPercentage:       cPct  < 2 ? cPct  * 100 : cPct,
-        fenwickPercentage:     fPct  < 2 ? fPct  * 100 : fPct,
-        shotsForPerGame:       safeFloat(cols, idx.shotsFor)    / gp,
-        shotsAgainstPerGame:   safeFloat(cols, idx.shotsAgainst) / gp,
-        goalsForPerGame:       safeFloat(cols, idx.goalsFor)    / gp,
-        goalsAgainstPerGame:   safeFloat(cols, idx.goalsAgainst) / gp,
-        xGoalsFor:             safeFloat(cols, idx.xGoalsFor),
-        xGoalsAgainst:         safeFloat(cols, idx.xGoalsAgainst),
-        highDangerShotsFor:    safeFloat(cols, idx.hdShotsFor),
-        highDangerShotsAgainst: safeFloat(cols, idx.hdShotsAgainst),
-        powerPlayPct:          (ppGoalsFor    / ppOppsFor)    * 100,
-        penaltyKillPct:        100 - (ppGoalsAgainst / pkOppsAgainst) * 100,
-      };
-    });
+    return {
+      team:                   abbrev,
+      gamesPlayed:            gp,
+      xGoalsPercentage:       shotsPct,
+      corsiPercentage:        shotsPct,
+      fenwickPercentage:      shotsPct,
+      shotsForPerGame,
+      shotsAgainstPerGame:    shotsAgtPerGame,
+      goalsForPerGame:        t.goalsForPerGame as number,
+      goalsAgainstPerGame:    t.goalsAgainstPerGame as number,
+      xGoalsFor:              t.goalsFor as number,
+      xGoalsAgainst:          t.goalsAgainst as number,
+      // High-danger shots not in NHL API; estimate at ~25% of total shots
+      highDangerShotsFor:     Math.round(totalShots * 0.25),
+      highDangerShotsAgainst: Math.round(totalShotsAgt * 0.25),
+      powerPlayPct:           ppPct,
+      penaltyKillPct:         pkPct,
+    };
+  });
 
   cache = stats;
   return stats;
 }
 
 export async function getTeamStats(abbreviation: string): Promise<TeamAdvancedStats | null> {
-  const all = await getAllTeamStats();
+  const all    = await getAllTeamStats();
   const abbrev = abbreviation.toUpperCase();
   return (
-    all.find((t) => t.team.toUpperCase() === abbrev) ??
-    all.find((t) => t.team.toUpperCase().includes(abbrev)) ??
+    all.find((t) => t.team === abbrev) ??
+    all.find((t) => t.team.includes(abbrev)) ??
     null
   );
 }
@@ -114,15 +108,11 @@ export async function getTeamStats(abbreviation: string): Promise<TeamAdvancedSt
 export function formatStatsForPrompt(stats: TeamAdvancedStats): string {
   return `Team: ${stats.team}
 Games Played: ${stats.gamesPlayed}
-xGoals%: ${stats.xGoalsPercentage.toFixed(1)}%
-Corsi%: ${stats.corsiPercentage.toFixed(1)}%
-Fenwick%: ${stats.fenwickPercentage.toFixed(1)}%
 Goals For/Game: ${stats.goalsForPerGame.toFixed(2)}
 Goals Against/Game: ${stats.goalsAgainstPerGame.toFixed(2)}
-xGoals For (season): ${stats.xGoalsFor.toFixed(1)}
-xGoals Against (season): ${stats.xGoalsAgainst.toFixed(1)}
-High Danger Shots For (season): ${stats.highDangerShotsFor.toFixed(0)}
-High Danger Shots Against (season): ${stats.highDangerShotsAgainst.toFixed(0)}
+Shots For/Game: ${stats.shotsForPerGame.toFixed(1)}
+Shots Against/Game: ${stats.shotsAgainstPerGame.toFixed(1)}
+Shots% (possession proxy): ${stats.corsiPercentage.toFixed(1)}%
 Power Play%: ${stats.powerPlayPct.toFixed(1)}%
 Penalty Kill%: ${stats.penaltyKillPct.toFixed(1)}%`;
 }

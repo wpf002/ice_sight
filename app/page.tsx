@@ -58,55 +58,43 @@ export default function HomePage() {
       const myStatsData  = await myStatsRes.json();
       const oppStatsData = await oppStatsRes.json();
 
+      // Fallback is only used if the NHL stats API is down — these are league averages, not team-specific
       const fallback = (team: string): TeamAdvancedStats => ({
-        team, gamesPlayed: 60, xGoalsPercentage: 50, corsiPercentage: 50,
-        fenwickPercentage: 50, shotsForPerGame: 30, shotsAgainstPerGame: 30,
-        goalsForPerGame: 3, goalsAgainstPerGame: 3, xGoalsFor: 150, xGoalsAgainst: 150,
-        highDangerShotsFor: 400, highDangerShotsAgainst: 400, powerPlayPct: 20, penaltyKillPct: 80,
+        team, gamesPlayed: 80, xGoalsPercentage: 50, corsiPercentage: 50,
+        fenwickPercentage: 50, shotsForPerGame: 27, shotsAgainstPerGame: 27,
+        goalsForPerGame: 3.1, goalsAgainstPerGame: 3.1, xGoalsFor: 248, xGoalsAgainst: 248,
+        highDangerShotsFor: 504, highDangerShotsAgainst: 504, powerPlayPct: 20.5, penaltyKillPct: 79.5,
       });
 
       const myTeamStats  = myStatsData.stats  ?? fallback(myTeamId);
       const opponentStats = oppStatsData.stats ?? fallback(opponentId);
 
-      setLoadingStep("Generating report with Claude...");
-      const reportRes = await fetch("/api/report", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          reportType,
-          homeTeam:   myTeamSide === "home" ? myTeam : opponent,
-          awayTeam:   myTeamSide === "away" ? myTeam : opponent,
-          myTeamSide, gameDate, myTeamStats, opponentStats,
-          recentGames: recentData.text ?? "No recent games found.",
-          additionalContext: context || undefined,
-          ...(reportType === "postgame" && {
-            finalScore: myScore && oppScore
-              ? { myTeam: parseInt(myScore), opponent: parseInt(oppScore) }
-              : undefined,
-            gameNotes: gameNotes || undefined,
-          }),
-        }),
-      });
-
-      const data = await reportRes.json();
-      if (data.error) throw new Error(data.error);
-
-      const report: GeneratedReport = {
-        id: Date.now().toString(),
-        content: data.report,
-        myTeam: myTeam.name,
-        opponent: opponent.name,
-        gameDate,
+      const id = Date.now().toString();
+      const reportInput = {
         reportType,
-        createdAt: new Date().toISOString(),
+        homeTeam:   myTeamSide === "home" ? myTeam : opponent,
+        awayTeam:   myTeamSide === "away" ? myTeam : opponent,
+        myTeamSide, gameDate, myTeamStats, opponentStats,
+        recentGames: recentData.text ?? "No recent games found.",
+        additionalContext: context || undefined,
+        ...(reportType === "postgame" && {
+          finalScore: myScore && oppScore
+            ? { myTeam: parseInt(myScore), opponent: parseInt(oppScore) }
+            : undefined,
+          gameNotes: gameNotes || undefined,
+        }),
       };
 
-      // Persist to localStorage
-      const { saveToHistory } = await import("@/lib/history");
-      saveToHistory(report);
-      sessionStorage.setItem(`report_${report.id}`, JSON.stringify(report));
+      // Store pending metadata and navigate immediately — report page handles streaming
+      sessionStorage.setItem(`report_pending_${id}`, JSON.stringify({
+        id, reportInput,
+        myTeam: myTeam.name,
+        opponent: opponent.name,
+        gameDate, reportType,
+        createdAt: new Date().toISOString(),
+      }));
 
-      router.push(`/report/${report.id}`);
+      router.push(`/report/${id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
@@ -404,7 +392,7 @@ export default function HomePage() {
         </main>
       </div>
 
-      <style>{`
+      <style suppressHydrationWarning>{`
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
         @keyframes spin  { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(0.5) sepia(1) saturate(2) hue-rotate(90deg); cursor: pointer; }

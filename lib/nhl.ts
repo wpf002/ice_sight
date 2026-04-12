@@ -13,10 +13,12 @@ export async function getTeams(): Promise<NHLTeam[]> {
     const abbrev = (t.teamAbbrev as { default: string }).default;
     const place  = (t.placeName  as { default: string }).default;
     const common = (t.teamName   as { default: string }).default;
+    // Guard: some API responses return the full "City Team" in teamName already
+    const fullName = common.startsWith(place) ? common : `${place} ${common}`;
     return {
       id: abbrev,
       abbreviation: abbrev,
-      name: `${place} ${common}`,
+      name: fullName,
       locationName: place,
       teamName: common,
     };
