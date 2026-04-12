@@ -1,0 +1,104 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Dallas Stars brand palette */
+  --bg: #050708;
+  --surface: #0c0e10;
+  --surface-2: #131618;
+  --surface-3: #1a1e21;
+  --border: #1e2428;
+  --border-bright: #2a3038;
+
+  --text: #f0f2f4;
+  --text-muted: #8a9299;
+  --text-dim: #3e464e;
+
+  /* Victory Green */
+  --accent: #006847;
+  --accent-light: #00875e;
+  --accent-bright: #00a872;
+  --accent-dim: rgba(0, 104, 71, 0.18);
+  --accent-glow: rgba(0, 104, 71, 0.25);
+
+  /* Gold accent */
+  --gold: #c8a84b;
+  --gold-dim: rgba(200, 168, 75, 0.15);
+
+  --red: #cc3333;
+  --win: #00875e;
+  --loss: #cc3333;
+
+  --font-display: 'Barlow Condensed', sans-serif;
+  --font-body: 'Barlow', sans-serif;
+  --font-mono: 'IBM Plex Mono', monospace;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: var(--surface); }
+::-webkit-scrollbar-thumb { background: var(--accent); border-radius: 2px; }
+
+/* Report editor prose styles */
+.report-editor h1 {
+  font-family: var(--font-display);
+  font-size: 2.2rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--text);
+  margin-bottom: 0.25rem;
+  line-height: 1.05;
+}
+.report-editor h2 {
+  font-family: var(--font-display);
+  font-size: 1.2rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent-bright);
+  margin-top: 2rem;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid var(--border-bright);
+}
+.report-editor h3 {
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--gold);
+  margin-top: 1.5rem;
+  margin-bottom: 0.5rem;
+}
+.report-editor p {
+  font-size: 0.92rem;
+  line-height: 1.8;
+  color: #c8cdd2;
+  margin-bottom: 0.75rem;
+}
+.report-editor ul {
+  margin-left: 1.25rem;
+  margin-bottom: 0.75rem;
+}
+.report-editor li {
+  font-size: 0.92rem;
+  line-height: 1.8;
+  color: #c8cdd2;
+  margin-bottom: 0.3rem;
+}
+.report-editor li::marker { color: var(--accent-bright); }
+.report-editor strong { color: var(--text); font-weight: 600; }
+.report-editor [contenteditable]:focus { outline: none; }
