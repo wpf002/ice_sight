@@ -228,7 +228,12 @@ export async function POST(req: NextRequest) {
 }
 
 async function generateReport(input: ReportInput): Promise<Response> {
+  const t0 = Date.now();
+  const tag = `[report ${input.homeTeam.abbreviation}v${input.awayTeam.abbreviation}]`;
+  const elapsed = () => `+${((Date.now() - t0) / 1000).toFixed(1)}s`;
+
   const { prompt, titlePrefill } = buildReportPrompt(input);
+  console.log(`${tag} Pass 1 start — prompt ${prompt.length} chars`);
 
   // Pass 1: Generate full report (non-streaming so we can validate before delivery)
   const generation = await client.messages.create({
@@ -241,9 +246,11 @@ async function generateReport(input: ReportInput): Promise<Response> {
 
   const rawBody =
     generation.content[0].type === "text" ? generation.content[0].text : "";
+  console.log(`${tag} Pass 1 done ${elapsed()} — ${rawBody.length} chars, stop=${generation.stop_reason}, tokens in=${generation.usage.input_tokens} out=${generation.usage.output_tokens}`);
 
   // Deterministic phrase scan — runs in-process, no LLM, no latency cost
   const phraseIssues = scanBannedPhrases(rawBody);
+  console.log(`${tag} Phrase scan — ${phraseIssues.length} issue(s)${phraseIssues.length ? ": " + phraseIssues.map(i => i.split(":")[0]).join("; ") : ""}`);
 
   // Pass 2: Haiku semantic checks (SHG proximity, SV% inversion, last-N arithmetic)
   let semanticIssues: string[] = [];
@@ -264,7 +271,9 @@ async function generateReport(input: ReportInput): Promise<Response> {
     if (!result.valid && Array.isArray(result.issues)) {
       semanticIssues = result.issues;
     }
-  } catch {
+    console.log(`${tag} Haiku done ${elapsed()} — valid=${result.valid}${semanticIssues.length ? ", issues: " + semanticIssues.join("; ") : ""}`);
+  } catch (err) {
+    console.warn(`${tag} Haiku failed ${elapsed()} —`, err instanceof Error ? err.message : err);
     // Haiku failed — phrase issues still proceed to correction
   }
 
@@ -273,6 +282,7 @@ async function generateReport(input: ReportInput): Promise<Response> {
   let finalBody = rawBody;
 
   if (allIssues.length > 0) {
+    console.log(`${tag} Pass 3 start — correcting ${allIssues.length} issue(s)`);
     try {
       const issueList = allIssues
         .map((issue: string, i: number) => `${i + 1}. ${issue}`)
@@ -293,16 +303,21 @@ async function generateReport(input: ReportInput): Promise<Response> {
 
       if (correction.content[0].type === "text") {
         finalBody = correction.content[0].text;
+        console.log(`${tag} Pass 3 done ${elapsed()} — correction applied`);
       }
-    } catch {
+    } catch (err) {
+      console.warn(`${tag} Pass 3 failed ${elapsed()} —`, err instanceof Error ? err.message : err);
       // Correction failed — deliver the original rather than blocking
       finalBody = rawBody;
     }
+  } else {
+    console.log(`${tag} Pass 3 skipped — no issues found`);
   }
 
   // Deterministic grammar pass — fixes subject-verb agreement on stat phrases
   // before delivery; no LLM needed for these patterns.
   finalBody = fixGrammar(finalBody);
+  console.log(`${tag} Done ${elapsed()} — delivering ${finalBody.length} chars`);
 
   // Stream the final body to the client
   const readable = new ReadableStream({
