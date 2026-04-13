@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getTeams, getRecentGames, getUpcomingGames, formatRecentGamesText, getTeamPersonnel } from "@/lib/nhl";
+import { getTeams, getRecentGames, getUpcomingGames, formatRecentGamesText, getTeamPersonnel, getTeamFaceoffStats, getHeadToHead } from "@/lib/nhl";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -31,6 +31,21 @@ export async function GET(req: NextRequest) {
       if (!abbrev) return NextResponse.json({ error: "abbrev required" }, { status: 400 });
       const personnel = await getTeamPersonnel(abbrev);
       return NextResponse.json({ personnel });
+    }
+
+    if (action === "faceoff") {
+      const abbrev = searchParams.get("abbrev");
+      if (!abbrev) return NextResponse.json({ error: "abbrev required" }, { status: 400 });
+      const faceoff = await getTeamFaceoffStats(abbrev);
+      return NextResponse.json({ faceoff });
+    }
+
+    if (action === "headtohead") {
+      const abbrev = searchParams.get("abbrev");
+      const opp    = searchParams.get("opp");
+      if (!abbrev || !opp) return NextResponse.json({ error: "abbrev and opp required" }, { status: 400 });
+      const h2h = await getHeadToHead(abbrev, opp);
+      return NextResponse.json({ h2h });
     }
 
     return NextResponse.json({ error: "Unknown action" }, { status: 400 });

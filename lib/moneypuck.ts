@@ -46,15 +46,27 @@ export async function getAllTeamStats(): Promise<TeamAdvancedStats[]> {
   const season = currentSeasonId();
   const cayenne = encodeURIComponent(`seasonId=${season} and gameTypeId=2`);
 
-  const [standingsMap, summaryRes] = await Promise.all([
+  const [standingsMap, summaryRes, ppRes, pkRes] = await Promise.all([
     buildNameToAbbrevMap(),
-    fetch(`${NHL_STATS}/team/summary?cayenneExp=${cayenne}&limit=40`, {
-      next: { revalidate: 3600 },
-    }),
+    fetch(`${NHL_STATS}/team/summary?cayenneExp=${cayenne}&limit=40`,     { next: { revalidate: 3600 } }),
+    fetch(`${NHL_STATS}/team/powerplay?cayenneExp=${cayenne}&limit=40`,   { next: { revalidate: 3600 } }),
+    fetch(`${NHL_STATS}/team/penaltykill?cayenneExp=${cayenne}&limit=40`, { next: { revalidate: 3600 } }),
   ]);
 
   if (!summaryRes.ok) throw new Error(`NHL stats summary fetch failed: ${summaryRes.status}`);
   const summaryData = await summaryRes.json();
+
+  // Build name-keyed lookup maps for PP and PK data
+  const ppRows:  Record<string, Record<string, unknown>> = {};
+  const pkRows:  Record<string, Record<string, unknown>> = {};
+  if (ppRes.ok) {
+    for (const row of (await ppRes.json()).data as Record<string, unknown>[])
+      ppRows[(row.teamFullName as string).toLowerCase()] = row;
+  }
+  if (pkRes.ok) {
+    for (const row of (await pkRes.json()).data as Record<string, unknown>[])
+      pkRows[(row.teamFullName as string).toLowerCase()] = row;
+  }
 
   const stats: TeamAdvancedStats[] = (summaryData.data as Record<string, unknown>[]).map((t) => {
     const fullName = (t.teamFullName as string).toLowerCase();
@@ -63,6 +75,7 @@ export async function getAllTeamStats(): Promise<TeamAdvancedStats[]> {
     const gp              = t.gamesPlayed as number;
     const shotsForPerGame = t.shotsForPerGame as number;
     const shotsAgtPerGame = t.shotsAgainstPerGame as number;
+    const goalsFor        = t.goalsFor as number;
     const totalShots      = shotsForPerGame * gp;
     const totalShotsAgt   = shotsAgtPerGame * gp;
     // Shots% as a proxy for possession (directionally correct, not exact Corsi)
@@ -70,6 +83,9 @@ export async function getAllTeamStats(): Promise<TeamAdvancedStats[]> {
 
     const ppPct = (t.powerPlayPct as number) * 100;  // API stores as 0-1 decimal
     const pkPct = (t.penaltyKillPct as number) * 100;
+
+    const pp = ppRows[fullName];
+    const pk = pkRows[fullName];
 
     return {
       team:                   abbrev,
@@ -81,13 +97,20 @@ export async function getAllTeamStats(): Promise<TeamAdvancedStats[]> {
       shotsAgainstPerGame:    shotsAgtPerGame,
       goalsForPerGame:        t.goalsForPerGame as number,
       goalsAgainstPerGame:    t.goalsAgainstPerGame as number,
-      xGoalsFor:              t.goalsFor as number,
+      xGoalsFor:              goalsFor,
       xGoalsAgainst:          t.goalsAgainst as number,
       // High-danger shots not in NHL API; estimate at ~25% of total shots
       highDangerShotsFor:     Math.round(totalShots * 0.25),
       highDangerShotsAgainst: Math.round(totalShotsAgt * 0.25),
       powerPlayPct:           ppPct,
       penaltyKillPct:         pkPct,
+      // Special teams volume
+      ppOpportunitiesPerGame:   pp ? pp.ppOpportunitiesPerGame as number : undefined,
+      timesShorthandedPerGame:  pk ? pk.timesShorthandedPerGame as number : undefined,
+      shorthandedGoalsFor:      pk ? pk.shGoalsFor as number : undefined,
+      shorthandedGoalsAgainst:  pp ? pp.shGoalsAgainst as number : undefined,
+      // Shooting efficiency
+      shootingPct: totalShots > 0 ? (goalsFor / totalShots) * 100 : undefined,
     };
   });
 
@@ -106,13 +129,31 @@ export async function getTeamStats(abbreviation: string): Promise<TeamAdvancedSt
 }
 
 export function formatStatsForPrompt(stats: TeamAdvancedStats): string {
-  return `Team: ${stats.team}
-Games Played: ${stats.gamesPlayed}
-Goals Scored/Game: ${stats.goalsForPerGame.toFixed(2)}
-Goals Allowed/Game: ${stats.goalsAgainstPerGame.toFixed(2)}
-Shots Taken/Game (this team's offense): ${stats.shotsForPerGame.toFixed(1)}
-Shots Allowed/Game (this team's defense): ${stats.shotsAgainstPerGame.toFixed(1)}
-Shots% (possession proxy): ${stats.corsiPercentage.toFixed(1)}%
-Power Play%: ${stats.powerPlayPct.toFixed(1)}%
-Penalty Kill%: ${stats.penaltyKillPct.toFixed(1)}%`;
+  const lines = [
+    `Team: ${stats.team}`,
+    `Games Played: ${stats.gamesPlayed}`,
+    `Goals Scored/Game: ${stats.goalsForPerGame.toFixed(2)}`,
+    `Goals Allowed/Game: ${stats.goalsAgainstPerGame.toFixed(2)}`,
+    stats.shootingPct !== undefined
+      ? `Team Shooting%: ${stats.shootingPct.toFixed(1)}%`
+      : null,
+    `Shots Taken/Game (this team's offense): ${stats.shotsForPerGame.toFixed(1)}`,
+    `Shots Allowed/Game (this team's defense): ${stats.shotsAgainstPerGame.toFixed(1)}`,
+    `Shots% (possession proxy): ${stats.corsiPercentage.toFixed(1)}%`,
+    `Power Play%: ${stats.powerPlayPct.toFixed(1)}%`,
+    stats.ppOpportunitiesPerGame !== undefined
+      ? `PP Opportunities/Game: ${stats.ppOpportunitiesPerGame.toFixed(2)}`
+      : null,
+    stats.shorthandedGoalsAgainst !== undefined
+      ? `SH Goals Against (goals scored vs this team while on PP): ${stats.shorthandedGoalsAgainst}`
+      : null,
+    `Penalty Kill%: ${stats.penaltyKillPct.toFixed(1)}%`,
+    stats.timesShorthandedPerGame !== undefined
+      ? `Times Shorthanded/Game: ${stats.timesShorthandedPerGame.toFixed(2)}`
+      : null,
+    stats.shorthandedGoalsFor !== undefined
+      ? `SH Goals For (goals this team scores while shorthanded): ${stats.shorthandedGoalsFor}`
+      : null,
+  ];
+  return lines.filter(Boolean).join("\n");
 }

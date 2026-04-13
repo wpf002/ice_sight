@@ -50,17 +50,23 @@ export default function HomePage() {
       const recentData = await recentRes.json();
 
       setLoadingStep("Loading stats and player data...");
-      const [myStatsRes, oppStatsRes, myPersonnelRes, oppPersonnelRes] = await Promise.all([
+      const [myStatsRes, oppStatsRes, myPersonnelRes, oppPersonnelRes, myFaceoffRes, oppFaceoffRes, h2hRes] = await Promise.all([
         fetch(`/api/moneypuck?team=${myTeamId}`),
         fetch(`/api/moneypuck?team=${opponentId}`),
         fetch(`/api/nhl?action=personnel&abbrev=${myTeamId}`),
         fetch(`/api/nhl?action=personnel&abbrev=${opponentId}`),
+        fetch(`/api/nhl?action=faceoff&abbrev=${myTeamId}`),
+        fetch(`/api/nhl?action=faceoff&abbrev=${opponentId}`),
+        fetch(`/api/nhl?action=headtohead&abbrev=${myTeamId}&opp=${opponentId}`),
       ]);
 
       const myStatsData      = await myStatsRes.json();
       const oppStatsData     = await oppStatsRes.json();
       const myPersonnelData  = await myPersonnelRes.json();
       const oppPersonnelData = await oppPersonnelRes.json();
+      const myFaceoffData    = await myFaceoffRes.json();
+      const oppFaceoffData   = await oppFaceoffRes.json();
+      const h2hData          = await h2hRes.json();
 
       // Fallback is only used if the NHL stats API is down — these are league averages, not team-specific
       const fallback = (team: string): TeamAdvancedStats => ({
@@ -81,6 +87,9 @@ export default function HomePage() {
         myTeamSide, gameDate, myTeamStats, opponentStats,
         myTeamPersonnel:   myPersonnelData.personnel  ?? undefined,
         opponentPersonnel: oppPersonnelData.personnel ?? undefined,
+        myTeamFaceoff:     myFaceoffData.faceoff      ?? undefined,
+        opponentFaceoff:   oppFaceoffData.faceoff     ?? undefined,
+        headToHead:        h2hData.h2h               ?? undefined,
         recentGames: recentData.text ?? "No recent games found.",
         additionalContext: context || undefined,
         ...(reportType === "postgame" && {

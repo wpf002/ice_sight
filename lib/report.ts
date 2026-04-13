@@ -1,6 +1,6 @@
 import { ReportInput } from "@/types";
 import { formatStatsForPrompt } from "./moneypuck";
-import { formatPersonnelForPrompt } from "./nhl";
+import { formatPersonnelForPrompt, formatFaceoffForPrompt, formatHeadToHeadForPrompt } from "./nhl";
 
 interface ReportPrompt {
   prompt: string;
@@ -14,14 +14,17 @@ export function buildReportPrompt(input: ReportInput): ReportPrompt {
 
   const statsBlock = `OUR TEAM (${myTeam})
 ${formatStatsForPrompt(input.myTeamStats)}
+${input.myTeamFaceoff ? "\n" + formatFaceoffForPrompt(input.myTeamFaceoff) : ""}
 ${input.myTeamPersonnel ? "\n" + formatPersonnelForPrompt(input.myTeamPersonnel) : ""}
 
 OPPONENT (${oppTeam})
 ${formatStatsForPrompt(input.opponentStats)}
+${input.opponentFaceoff ? "\n" + formatFaceoffForPrompt(input.opponentFaceoff) : ""}
 ${input.opponentPersonnel ? "\n" + formatPersonnelForPrompt(input.opponentPersonnel) : ""}
 
-OUR LAST 5 GAMES
+OUR LAST 10 GAMES
 ${input.recentGames}
+${input.headToHead ? `\n${formatHeadToHeadForPrompt(input.headToHead, myTeam, oppTeam)}` : ""}
 ${input.additionalContext ? `\nSCOUT NOTES\n${input.additionalContext}` : ""}`.trim();
 
   if (input.reportType === "pregame") {
