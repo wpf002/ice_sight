@@ -545,25 +545,11 @@ export default function ReportPage() {
         </div>
 
         {streaming && !hasContent && (
-          <div style={{
-            minHeight: "65vh", display: "flex", flexDirection: "column",
-            alignItems: "center", justifyContent: "center", gap: "2rem",
-            background: "var(--surface)", border: "1px solid var(--border)",
-            borderRadius: "10px", boxShadow: "0 0 40px rgba(0,0,0,0.3)",
-          }}>
-            <Spinner size={22} />
-            <div style={{ textAlign: "center", display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-              <span style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: "1rem", color: "var(--text)", letterSpacing: "0.02em" }}>
-                {report.myTeam.toUpperCase()} VS {report.opponent.toUpperCase()}
-              </span>
-              <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.72rem", color: "var(--accent-bright)" }}>
-                {elapsed < 65 ? "Generating report..." : elapsed < 78 ? "Validating..." : "Applying corrections..."}
-              </span>
-              <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.6rem", color: "var(--text-dim)" }}>
-                {elapsed}s
-              </span>
-            </div>
-          </div>
+          <LoadingOverlay
+            elapsed={elapsed}
+            myTeam={report.myTeam}
+            opponent={report.opponent}
+          />
         )}
 
         <div
@@ -767,6 +753,39 @@ function StarIcon({ size = 16, color = "var(--accent)" }: { size?: number; color
     <svg width={size} height={size} viewBox="0 0 24 24" fill={color} style={{ flexShrink: 0 }}>
       <polygon points="12,2 14.8,9.2 22.5,9.2 16.4,13.8 18.6,21 12,16.5 5.4,21 7.6,13.8 1.5,9.2 9.2,9.2" />
     </svg>
+  );
+}
+
+function LoadingOverlay({ elapsed, myTeam, opponent }: { elapsed: number; myTeam: string; opponent: string }) {
+  const progress = elapsed < 65
+    ? Math.round((elapsed / 65) * 70)
+    : elapsed < 78
+    ? Math.round(70 + ((elapsed - 65) / 13) * 15)
+    : Math.min(99, Math.round(85 + ((elapsed - 78) / 30) * 14));
+  const phase = elapsed < 65 ? "Generating report..." : elapsed < 78 ? "Validating..." : "Applying corrections...";
+  return (
+    <div style={{
+      minHeight: "65vh", display: "flex", flexDirection: "column",
+      alignItems: "center", justifyContent: "center", gap: "2rem",
+      background: "var(--surface)", border: "1px solid var(--border)",
+      borderRadius: "10px", boxShadow: "0 0 40px rgba(0,0,0,0.3)",
+    }}>
+      <Spinner size={22} />
+      <div style={{ textAlign: "center", display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+        <span style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: "1rem", color: "var(--text)", letterSpacing: "0.02em" }}>
+          {myTeam.toUpperCase()} VS {opponent.toUpperCase()}
+        </span>
+        <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.72rem", color: "var(--accent-bright)" }}>
+          {phase}
+        </span>
+        <div style={{ width: "180px", height: "3px", background: "var(--border)", borderRadius: "2px", margin: "0.25rem auto 0" }}>
+          <div style={{ width: `${progress}%`, height: "100%", background: "var(--accent-bright)", borderRadius: "2px", transition: "width 0.8s ease" }} />
+        </div>
+        <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.6rem", color: "var(--text-dim)" }}>
+          {progress}%
+        </span>
+      </div>
+    </div>
   );
 }
 
