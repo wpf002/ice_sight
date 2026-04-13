@@ -8,14 +8,13 @@ export interface NHLTeam {
 
 export interface NHLSkater {
   name: string;
-  position: string;           // C | L | R | D
+  position: string;     // C | L | R | D
   gamesPlayed: number;
   goals: number;
   assists: number;
   points: number;
-  toiPerGame: number;         // seconds
+  toiPerGame: number;   // seconds
   powerPlayPoints: number;
-  shorthandedToiPerGame: number;  // seconds — identifies PK specialists
 }
 
 export interface NHLGoalie {
@@ -27,6 +26,14 @@ export interface NHLGoalie {
   savePct: number;
   goalsAgainstAverage: number;
   shutouts: number;
+  recentForm?: {
+    games: number;
+    wins: number;
+    losses: number;
+    otLosses: number;
+    savePct: number;
+    goalsAgainstAverage: number;
+  };
 }
 
 export interface TeamPersonnel {

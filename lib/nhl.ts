@@ -42,46 +42,85 @@ export async function getTeams(): Promise<NHLTeam[]> {
 
 // ── Player personnel ───────────────────────────────────────────────────────
 export async function getTeamPersonnel(teamAbbrev: string): Promise<TeamPersonnel> {
-  const season  = currentSeasonId();
-  const abbrev  = teamAbbrev.toUpperCase();
-  const cayenne = encodeURIComponent(
+  const season   = currentSeasonId();
+  const abbrev   = teamAbbrev.toUpperCase();
+  const cayenne  = encodeURIComponent(
     `seasonId=${season} and gameTypeId=2 and teamAbbrevs="${abbrev}"`
   );
+  const sortDesc = encodeURIComponent(JSON.stringify([{ property: "points", direction: "DESC" }]));
 
   const [skatersRes, goalieRes] = await Promise.all([
-    fetch(`${NHL_STATS}/skater/summary?cayenneExp=${cayenne}&sort=points&limit=25`, { next: { revalidate: 3600 } }),
-    fetch(`${NHL_STATS}/goalie/summary?cayenneExp=${cayenne}&sort=gamesStarted&limit=3`,  { next: { revalidate: 3600 } }),
+    fetch(`${NHL_STATS}/skater/summary?cayenneExp=${cayenne}&sort=${sortDesc}&limit=25`, { next: { revalidate: 3600 } }),
+    fetch(`${NHL_STATS}/goalie/summary?cayenneExp=${cayenne}&sort=${encodeURIComponent(JSON.stringify([{ property: "gamesStarted", direction: "DESC" }]))}&limit=3`, { next: { revalidate: 3600 } }),
   ]);
 
   const skatersData = skatersRes.ok ? await skatersRes.json() : { data: [] };
   const goalieData  = goalieRes.ok  ? await goalieRes.json()  : { data: [] };
 
   const allSkaters: NHLSkater[] = (skatersData.data as Record<string, unknown>[]).map((s) => ({
-    name:                  s.skaterFullName as string,
-    position:              s.positionCode as string,
-    gamesPlayed:           s.gamesPlayed as number,
-    goals:                 s.goals as number,
-    assists:               s.assists as number,
-    points:                s.points as number,
-    toiPerGame:            s.timeOnIcePerGame as number,
-    powerPlayPoints:       (s.powerPlayPoints as number) ?? 0,
-    shorthandedToiPerGame: (s.shorthandedTimeOnIcePerGame as number) ?? 0,
+    name:             s.skaterFullName as string,
+    position:         s.positionCode as string,
+    gamesPlayed:      s.gamesPlayed as number,
+    goals:            s.goals as number,
+    assists:          s.assists as number,
+    points:           s.points as number,
+    toiPerGame:       s.timeOnIcePerGame as number,
+    powerPlayPoints:  (s.ppPoints as number) ?? 0,
   }));
 
   const forwards   = allSkaters.filter((s) => ["C", "L", "R"].includes(s.position)).slice(0, 5);
   const defensemen = allSkaters.filter((s) => s.position === "D").slice(0, 3);
 
+  // Build base goalie from summary, then enrich with last-10 form
   const raw = (goalieData.data as Record<string, unknown>[])[0] ?? null;
-  const goalie: NHLGoalie | null = raw ? {
-    name:                raw.goalieFullName as string,
-    gamesStarted:        raw.gamesStarted as number,
-    wins:                raw.wins as number,
-    losses:              raw.losses as number,
-    otLosses:            raw.otLosses as number,
-    savePct:             raw.savePct as number,
-    goalsAgainstAverage: raw.goalsAgainstAverage as number,
-    shutouts:            raw.shutouts as number,
-  } : null;
+  let goalie: NHLGoalie | null = null;
+
+  if (raw) {
+    goalie = {
+      name:                raw.goalieFullName as string,
+      gamesStarted:        raw.gamesStarted as number,
+      wins:                raw.wins as number,
+      losses:              raw.losses as number,
+      otLosses:            raw.otLosses as number,
+      savePct:             raw.savePct as number,
+      goalsAgainstAverage: raw.goalsAgainstAverage as number,
+      shutouts:            raw.shutouts as number,
+    };
+
+    // Fetch last-10 starts for recent form
+    try {
+      const logRes = await fetch(
+        `${NHL_API}/player/${raw.playerId}/game-log/${season}/2`,
+        { next: { revalidate: 3600 } }
+      );
+      if (logRes.ok) {
+        const logData = await logRes.json();
+        const starts = (logData.gameLog as Record<string, unknown>[])
+          .filter((g) => (g.gamesStarted as number) === 1)
+          .slice(0, 10);
+
+        if (starts.length > 0) {
+          const rfWins     = starts.filter((g) => g.decision === "W").length;
+          const rfLosses   = starts.filter((g) => g.decision === "L").length;
+          const rfOtLosses = starts.filter((g) => g.decision === "O").length;
+          const totalSaves = starts.reduce((n, g) => n + ((g.shotsAgainst as number) - (g.goalsAgainst as number)), 0);
+          const totalShots = starts.reduce((n, g) => n + (g.shotsAgainst as number), 0);
+          const totalGA    = starts.reduce((n, g) => n + (g.goalsAgainst as number), 0);
+
+          goalie.recentForm = {
+            games:               starts.length,
+            wins:                rfWins,
+            losses:              rfLosses,
+            otLosses:            rfOtLosses,
+            savePct:             totalShots > 0 ? totalSaves / totalShots : 0,
+            goalsAgainstAverage: totalGA / starts.length,
+          };
+        }
+      }
+    } catch {
+      // recent form is best-effort — don't fail the whole request
+    }
+  }
 
   return { team: abbrev, forwards, defensemen, goalie };
 }
@@ -95,9 +134,15 @@ export function formatPersonnelForPrompt(p: TeamPersonnel): string {
     `  ${s.name} (D) — ${s.gamesPlayed} GP, ${s.goals}G-${s.assists}A-${s.points}Pts, ${formatToi(s.toiPerGame)}/gm, ${s.powerPlayPoints} PP pts`
   ).join("\n");
 
-  const gtdr = p.goalie
-    ? `  ${p.goalie.name} — ${p.goalie.gamesStarted} GS, ${p.goalie.wins}-${p.goalie.losses}-${p.goalie.otLosses} (W-L-OT), ${p.goalie.savePct.toFixed(3)} SV%, ${p.goalie.goalsAgainstAverage.toFixed(2)} GAA, ${p.goalie.shutouts} SO`
-    : "  Not available";
+  let gtdr = "  Not available";
+  if (p.goalie) {
+    const g = p.goalie;
+    const season = `${g.wins}-${g.losses}-${g.otLosses} (W-L-OT), ${g.savePct.toFixed(3)} SV%, ${g.goalsAgainstAverage.toFixed(2)} GAA, ${g.shutouts} SO`;
+    const recent = g.recentForm
+      ? ` | Last ${g.recentForm.games}: ${g.recentForm.wins}W-${g.recentForm.losses}L-${g.recentForm.otLosses}OT, ${g.recentForm.savePct.toFixed(3)} SV%, ${g.recentForm.goalsAgainstAverage.toFixed(2)} GAA`
+      : "";
+    gtdr = `  ${g.name} — ${g.gamesStarted} GS, ${season}${recent}`;
+  }
 
   return `Key Personnel:
 Top Forwards (by points):
