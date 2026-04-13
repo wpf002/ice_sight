@@ -71,6 +71,7 @@ export default function ReportPage() {
         }, 200);
       };
 
+      let wasAborted = false;
       try {
         const res = await fetch("/api/report", {
           method: "POST",
@@ -105,13 +106,18 @@ export default function ReportPage() {
         saveToHistory(completed);
         setReport(completed);
       } catch (err) {
-        console.error("[Stream]", err);
-        if (editorRef.current) {
-          editorRef.current.innerHTML = `<p style="color:#ff7070">⚠ Failed to generate report: ${err}</p>`;
+        // React Strict Mode (dev) double-fires effects and aborts the first fetch.
+        // Don't treat an abort as a real error — the second effect handles the real fetch.
+        wasAborted = err instanceof Error && err.name === "AbortError";
+        if (!wasAborted) {
+          console.error("[Stream]", err);
+          if (editorRef.current) {
+            editorRef.current.innerHTML = `<p style="color:#ff7070">⚠ Failed to generate report: ${err}</p>`;
+          }
+          setHasContent(true);
         }
-        setHasContent(true);
       } finally {
-        setStreaming(false);
+        if (!wasAborted) setStreaming(false);
       }
     })();
 
