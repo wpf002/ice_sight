@@ -12,6 +12,8 @@ export default function ReportPage() {
 
   const [report, setReport]         = useState<GeneratedReport | null>(null);
   const [streaming, setStreaming]   = useState(false);
+  const [hasContent, setHasContent] = useState(false);
+  const [elapsed, setElapsed]       = useState(0);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saved" | "copied" | "exporting">("idle");
   const streamedText   = useRef("");
   const reportInputRef = useRef<ReportInput | null>(null);
@@ -48,6 +50,8 @@ export default function ReportPage() {
     };
     setReport(meta);
     setStreaming(true);
+    setHasContent(false);
+    setElapsed(0);
 
     // Stream Claude's response directly into the editor
     streamedText.current = "";
@@ -62,6 +66,7 @@ export default function ReportPage() {
             editorRef.current.innerHTML = markdownToHtml(deduplicateSections(streamedText.current));
             injectSpecialTeamsTable(editorRef.current);
             editorRef.current.scrollTop = editorRef.current.scrollHeight;
+            setHasContent(true);
           }
         }, 200);
       };
@@ -89,6 +94,7 @@ export default function ReportPage() {
         if (editorRef.current) {
           editorRef.current.innerHTML = markdownToHtml(deduplicateSections(streamedText.current));
           injectSpecialTeamsTable(editorRef.current);
+          setHasContent(true);
         }
 
         // Finalise — store rendered HTML so the Special Teams table is preserved on reload
@@ -103,6 +109,7 @@ export default function ReportPage() {
         if (editorRef.current) {
           editorRef.current.innerHTML = `<p style="color:#ff7070">⚠ Failed to generate report: ${err}</p>`;
         }
+        setHasContent(true);
       } finally {
         setStreaming(false);
       }
@@ -120,6 +127,13 @@ export default function ReportPage() {
         : markdownToHtml(deduplicateSections(report.content));
     }
   }, [report, streaming]);
+
+  // Elapsed-time counter — drives phase labels in the loading overlay
+  useEffect(() => {
+    if (!streaming) { setElapsed(0); return; }
+    const timer = setInterval(() => setElapsed(s => s + 1), 1000);
+    return () => clearInterval(timer);
+  }, [streaming]);
 
   function buildSpecialTeamsTableHtml(input: ReportInput): string {
     const myTeam  = input.myTeamSide === "home" ? input.homeTeam  : input.awayTeam;
@@ -517,6 +531,28 @@ export default function ReportPage() {
           <Badge text="✎ CLICK TO EDIT" color="var(--gold)" bg="rgba(200,168,75,0.08)" border="rgba(200,168,75,0.2)" />
         </div>
 
+        {streaming && !hasContent && (
+          <div style={{
+            minHeight: "65vh", display: "flex", flexDirection: "column",
+            alignItems: "center", justifyContent: "center", gap: "2rem",
+            background: "var(--surface)", border: "1px solid var(--border)",
+            borderRadius: "10px", boxShadow: "0 0 40px rgba(0,0,0,0.3)",
+          }}>
+            <Spinner size={22} />
+            <div style={{ textAlign: "center", display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+              <span style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: "1rem", color: "var(--text)", letterSpacing: "0.02em" }}>
+                {report.myTeam.toUpperCase()} VS {report.opponent.toUpperCase()}
+              </span>
+              <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.72rem", color: "var(--accent-bright)" }}>
+                {elapsed < 65 ? "Generating report..." : elapsed < 78 ? "Validating..." : "Applying corrections..."}
+              </span>
+              <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.6rem", color: "var(--text-dim)" }}>
+                {elapsed}s
+              </span>
+            </div>
+          </div>
+        )}
+
         <div
           ref={editorRef}
           contentEditable
@@ -529,6 +565,7 @@ export default function ReportPage() {
             background: "var(--surface)", border: "1px solid var(--border)",
             borderRadius: "10px", lineHeight: 1.75,
             boxShadow: "0 0 40px rgba(0,0,0,0.3)",
+            display: streaming && !hasContent ? "none" : undefined,
           }}
         />
 
@@ -720,9 +757,9 @@ function StarIcon({ size = 16, color = "var(--accent)" }: { size?: number; color
   );
 }
 
-function Spinner() {
+function Spinner({ size = 14 }: { size?: number }) {
   return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
       style={{ animation: "spin 0.75s linear infinite", color: "var(--text-muted)" }}>
       <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
     </svg>
