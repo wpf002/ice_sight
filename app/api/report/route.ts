@@ -36,7 +36,7 @@ Absolute rules:
 - Player data now includes EV points, plus/minus, individual shooting%, and shots per game. Use them: a player with 40 PP points but only 20 EV points is a special-teams weapon who becomes far less dangerous at 5v5 — say so. A player shooting 18% is either genuinely elite or running hot and likely to cool — contextualize it. A player at -15 has been on ice for more goals against than for at even strength. These distinctions matter tactically. The correct hockey notation for this statistic is +/- (plus before minus). Never write it as -/+.
 - Goaltender data now includes 5v5 save% (evSavePct), PP-against save% (ppSavePct), and quality start % (QS%). The 5v5 SV% is the most predictive single goalie stat — use it as the primary measure of goaltending quality, with overall SV% as secondary context. A goalie with a high overall SV% but low 5v5 SV% is being propped up by a strong penalty kill. QS% framing: league-average QS% is approximately 50–55%. A QS% of 57–60% is near average or slightly above — do not frame it as a weakness. A QS% below 45% means the goalie is frequently putting the team in a hole — that is genuinely damaging. When citing QS%, state the percentage directly ("57.9% quality start rate") without converting it to a "fewer than X of ten" framing, which distorts the benchmark.
 - 5v5 SV% framing: league-average 5v5 SV% is approximately .919. A goalie at .904 5v5 is meaningfully below average regardless of what their overall SV% reads. When both numbers are provided, the correct framing is: "his 5v5 SV% of .904 is well below the league-average .919 at even strength." Never say a higher number is "more damning" than a lower number — that is self-contradictory. Save percentages are decimals: a higher number is ALWAYS better. .904 is better than .884. .919 is better than .904. Never call the numerically higher save percentage "more damning", "more concerning", or "more damaging" — the lower number is always the weaker one. CONCRETE EXAMPLE OF THE ERROR TO AVOID: "His 5v5 SV% of .904 is the more damaging number" is wrong — .904 is higher than .884, so .904 is the better number. The correct sentence: "His PP-against SV% of .884 is the weaker number; his 5v5 SV% of .904 is better but still well below league-average .919." When discussing a goalie's situational numbers, rank them correctly: "his PP-against SV% of .884 is his weakest number; his 5v5 SV% of .904 is better but still well below league-average." Do not compare the two numbers at all if it leads to inversion — just state each against its own benchmark.
-- PP-against SV% framing: a PP-against SV% around .880–.890 is roughly league-average. Before writing ANY claim that a PP-against SV% is the goalie's "strongest", "best", or "highest" number, do the arithmetic explicitly: if the goalie's 5v5 SV% is .904 and his PP-against SV% is .884, then .884 < .904 — .884 is his weakest number, not his strongest. A lower decimal is a worse save percentage. Never invert this. The correct framing when PP-against SV% is roughly average: "his PP-against SV% of .884 is roughly league-average — generating volume and traffic will produce results."
+- PP-against SV% framing: a PP-against SV% around .880–.890 is roughly league-average. The league-average band is approximately .875–.895. A value of .884 sits in the middle of that band — describe it as "roughly league-average", never as "at the low end of the band." "Low end" implies closer to .875; "high end" implies closer to .895. .884 is neither. Before writing ANY claim that a PP-against SV% is the goalie's "strongest", "best", or "highest" number, do the arithmetic explicitly: if the goalie's 5v5 SV% is .904 and his PP-against SV% is .884, then .884 < .904 — .884 is his weakest number, not his strongest. A lower decimal is a worse save percentage. Never invert this. The correct framing when PP-against SV% is roughly average: "his PP-against SV% of .884 is roughly league-average — generating volume and traffic will produce results."
 - Only name players from the data provided. Never introduce a player who does not appear in the personnel or stats data given in the prompt. If a player is not in the provided data, do not cite them by name. If a player appears only in the face-off data and nowhere else in the report, introduce them with their full name and role — do not assume the reader knows who they are. This rule applies when listing +/- values: only cite a player's +/- if that player is explicitly named in the personnel forwards or defensemen lists. Do not introduce a player for the first time via a +/- statistic alone.
 - Full name on first reference: every player must be introduced by their full name the first time they are named in each section. This rule applies to EVERY section without exception — Executive Summary, What They Do Well, Where They're Exploitable, Our Strengths, Threat Assessment, Power Play, Penalty Kill, Deployment Notes, Win Probability, and Keys to Victory each reset the rule independently. A player named in the Power Play section must be re-introduced by full name in the Penalty Kill section, and again in Deployment Notes, and again in Keys to Victory. There are no carry-overs between sections. "Nylander is the primary threat" is wrong if William Nylander has not yet been named in that section. Use "William Nylander is the primary threat." Subsequent references within the same section may use the last name only. Deployment Notes is a frequent failure point: even players introduced earlier in the report (Robertson, Johnston, Heiskanen, Oettinger, Matthews, Nylander, Tavares, Knies, Harley, Lindell) must be re-introduced with their full names the first time they appear in Deployment Notes.
 - Do not make claims about a player's career norms unless career data is provided in the prompt. "Nylander's 21 PP points is below his career standards" requires historical data to support. If only current-season stats are provided, compare within the current season only — or drop the career comparison entirely. This includes implied career comparisons: calling a player's stat total "limited" or "down" implies it is below their usual standard, which is a career claim. If 53 points in 60 games is the only data provided, describe it as what it is — 53 points in 60 games — not as "a limited season." "True threat level" is also an implied career comparison — writing "he is shooting below his true threat level" implies knowledge of a career baseline that is not in the provided data. Use only current-season data: "he is shooting at 11.9% this season" or describe how the current-season rate compares to league averages, not to a presumed historical norm. This also includes injury inferences: do not write "a season limited by injury", "missing time due to injury", "despite appearing in only X games", or "in just X games" (when X is fewer than ~70) unless injury data is explicitly provided. A player appearing in 60 of 82 games is simply "in 60 games" — do not speculate about why. This also includes season extrapolations: never project a current-season total to "a full season" or "a full X-game season." If Tavares has 50 EV points in 60 games, write "50 EV points in 60 games" — not "adds 50 EV points across a full 80-game season." Season projections imply a career-level claim that the data cannot support.
@@ -62,7 +62,7 @@ Absolute rules:
 - Season series (head-to-head record) is provided. Reference it in the Executive Summary and Opponent Assessment — patterns across multiple meetings this season are more meaningful than single-game anomalies.
 - Last-N record arithmetic: when citing a win-loss record as "last N" (e.g. "last ten", "last five"), verify that W + L + OT = N exactly. This applies to ALL values of N — last five, last six, last ten, last fifteen. If the numbers provided add to fewer than N, cite the record without the "last N" qualifier. Examples: "6W-2L-1OT" equals 9 — do not call it a "last-ten" record. "4W-1L-0OT" equals 5 — correct to call it a "last-five" record. "5W-1L-0OT" equals 6 — do not call it a "last-five" record. Never write an arithmetic impossibility.
 - League-average benchmarks for special teams: League-average power play percentage is approximately 21–22%. League-average penalty kill percentage is approximately 82–83%. A PK at 82.1% is roughly league-average — do not call it "above average" or "above the league-average 80% range." A PK at 80.3% is below average. A PP at 28.5% is elite. Apply these benchmarks consistently across both teams in every section.
-- Never use an opponent player's name as a benchmark for your own team's performance targets. Write the specific number instead. "Robertson at 3.6 shots per game leading a high-volume attack" is correct. "Auston Matthews-level volume from the Stars' top line" is wrong — Matthews plays for the opponent, using his name as a benchmark confuses the reader about which team you're discussing. This also applies to implicit mirrors: "Robertson's 3.6 shots per game and Matthews's mirror at 3.8 remind the staff that volume wins" uses Matthews as a target — wrong. Write "Robertson's 3.6 shots per game is the volume benchmark; sustain that pace."
+- Never use an opponent player's name as a benchmark for your own team's performance targets. Write the specific number instead. "Robertson at 3.6 shots per game leading a high-volume attack" is correct. "Auston Matthews-level volume from the Stars' top line" is wrong — Matthews plays for the opponent, using his name as a benchmark confuses the reader about which team you're discussing. This also applies to implicit mirrors: "Robertson's 3.6 shots per game and Matthews's mirror at 3.8 remind the staff that volume wins" uses Matthews as a target — wrong. Write "Robertson's 3.6 shots per game is the volume benchmark; sustain that pace." Any phrasing like "Matthews's mirror volume", "match Matthews's output", or "mirror his volume" is the same error.
 - Never self-correct inline. If you are about to write the wrong name or fact, stop and write the correct statement from scratch. Never publish a mid-sentence correction like "Robertson — no, on the opponent side: William Nylander" — that is a raw generation artifact. Write the correct sentence once, cleanly.
 - Superlative uniqueness: before calling a stat "the worst/best on the team" (e.g. "his -29 is the worst on the team"), verify that no other player in the provided data shares that figure. If two or more players are tied, write "tied for worst/best on the team."
 - Bullet point headers must be grammatically complete phrases. Never end a header mid-thought (e.g. "Limit transition chances against" is wrong; "Limit transition chances" is correct).
@@ -152,6 +152,12 @@ function scanBannedPhrases(text: string): string[] {
   check(
     ["most reliable draw man", "most reliable center on draws", "most reliable face-off", "most reliable defensive defenseman", "most reliable defender", "most reliable defenseman"],
     (p) => `Unsupported ranking superlative: "${p}" — verify this player leads all named players in the relevant stat before using this phrase; use "leads Toronto's named defensemen at +4" instead`
+  );
+
+  // Opponent-as-benchmark for own team's targets
+  check(
+    ["mirror volume", "mirror his volume", "mirror their volume", "match matthews", "matthews's mirror"],
+    (p) => `Opponent benchmark: "${p}" — never use an opponent player as a performance target; cite Robertson's own number instead`
   );
 
   // Circumlocutions that obscure which goalie is meant
@@ -304,6 +310,35 @@ async function generateReport(input: ReportInput): Promise<Response> {
       if (correction.content[0].type === "text") {
         finalBody = correction.content[0].text;
         console.log(`${tag} Pass 3 done ${elapsed()} — correction applied`);
+
+        // Re-scan corrected output — corrector can reintroduce banned phrases
+        const residualIssues = scanBannedPhrases(finalBody);
+        if (residualIssues.length > 0) {
+          console.log(`${tag} Re-scan found ${residualIssues.length} residual issue(s) — running Pass 3b`);
+          try {
+            const residualList = residualIssues
+              .map((issue: string, i: number) => `${i + 1}. ${issue}`)
+              .join("\n");
+            const correction2 = await client.messages.create({
+              model: "claude-sonnet-4-6",
+              max_tokens: 4096,
+              temperature: 0,
+              system: CORRECTOR_SYSTEM,
+              messages: [{
+                role: "user",
+                content: `Report:\n\n${finalBody}\n\nIssues to fix:\n${residualList}\n\nReturn the complete corrected report.`,
+              }],
+            });
+            if (correction2.content[0].type === "text") {
+              finalBody = correction2.content[0].text;
+              console.log(`${tag} Pass 3b done ${elapsed()} — residual correction applied`);
+            }
+          } catch (err2) {
+            console.warn(`${tag} Pass 3b failed ${elapsed()} —`, err2 instanceof Error ? err2.message : err2);
+          }
+        } else {
+          console.log(`${tag} Re-scan clean — no residual issues`);
+        }
       }
     } catch (err) {
       console.warn(`${tag} Pass 3 failed ${elapsed()} —`, err instanceof Error ? err.message : err);
