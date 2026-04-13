@@ -108,10 +108,10 @@ export async function getTeamStats(abbreviation: string): Promise<TeamAdvancedSt
 export function formatStatsForPrompt(stats: TeamAdvancedStats): string {
   return `Team: ${stats.team}
 Games Played: ${stats.gamesPlayed}
-Goals For/Game: ${stats.goalsForPerGame.toFixed(2)}
-Goals Against/Game: ${stats.goalsAgainstPerGame.toFixed(2)}
-Shots For/Game: ${stats.shotsForPerGame.toFixed(1)}
-Shots Against/Game: ${stats.shotsAgainstPerGame.toFixed(1)}
+Goals Scored/Game: ${stats.goalsForPerGame.toFixed(2)}
+Goals Allowed/Game: ${stats.goalsAgainstPerGame.toFixed(2)}
+Shots Taken/Game (this team's offense): ${stats.shotsForPerGame.toFixed(1)}
+Shots Allowed/Game (this team's defense): ${stats.shotsAgainstPerGame.toFixed(1)}
 Shots% (possession proxy): ${stats.corsiPercentage.toFixed(1)}%
 Power Play%: ${stats.powerPlayPct.toFixed(1)}%
 Penalty Kill%: ${stats.penaltyKillPct.toFixed(1)}%`;

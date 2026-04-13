@@ -64,15 +64,35 @@ export async function getUpcomingGames(teamAbbrev: string, count = 3): Promise<N
 export function formatRecentGamesText(games: NHLGame[], myAbbrev: string): string {
   if (!games.length) return "No recent completed games found.";
 
-  return games.map((g) => {
+  let wins = 0, losses = 0, otl = 0;
+
+  const lines = games.map((g) => {
     const isHome  = g.homeTeam.abbrev === myAbbrev;
     const myScore = isHome ? (g.homeTeam.score ?? 0) : (g.awayTeam.score ?? 0);
     const opScore = isHome ? (g.awayTeam.score ?? 0) : (g.homeTeam.score ?? 0);
-    const result  = myScore > opScore ? "W" : "L";
     const opp     = isHome
       ? g.awayTeam.commonName?.default ?? g.awayTeam.abbrev
       : g.homeTeam.commonName?.default ?? g.homeTeam.abbrev;
     const venue   = isHome ? "HOME" : "AWAY";
+
+    let result: string;
+    if (myScore > opScore) {
+      result = "W";
+      wins++;
+    } else {
+      const lastPeriod = g.gameOutcome?.lastPeriodType;
+      if (lastPeriod === "OT" || lastPeriod === "SO") {
+        result = "OTL";
+        otl++;
+      } else {
+        result = "L";
+        losses++;
+      }
+    }
+
     return `${g.gameDate} [${venue}]: ${result} ${myScore}-${opScore} vs ${opp}`;
-  }).join("\n");
+  });
+
+  const record = otl > 0 ? `${wins}-${losses}-${otl} (W-L-OTL)` : `${wins}-${losses}`;
+  return `Record (last ${games.length}): ${record}\n\n` + lines.join("\n");
 }

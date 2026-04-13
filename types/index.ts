@@ -12,6 +12,7 @@ export interface NHLGame {
   gameState: string;   // "OFF" = final, "LIVE", "FUT" = upcoming
   homeTeam: { abbrev: string; commonName: { default: string }; score?: number };
   awayTeam: { abbrev: string; commonName: { default: string }; score?: number };
+  gameOutcome?: { lastPeriodType: string };  // "REG" | "OT" | "SO"
 }
 
 export interface TeamAdvancedStats {
