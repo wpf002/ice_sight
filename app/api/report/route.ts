@@ -87,6 +87,39 @@ const CORRECTOR_SYSTEM = `You are editing an internal NHL scouting report to fix
 - Preserve all markdown formatting exactly: bold (**text**), ## headers, ### sub-headers, bullet points, table structure.
 - Return the complete corrected report with no preamble or commentary.`;
 
+/**
+ * Deterministic post-processor for grammar errors that don't need an LLM.
+ * Fixes subject-verb agreement on stat phrases: "X points reflects" → "reflect",
+ * "X and Y means" → "mean", etc.
+ */
+function fixGrammar(text: string): string {
+  // "N [stat-noun] reflects/means/suggests" → plural verb
+  // Matches: "41 EV points reflects", "47 goals means", "53 points suggests"
+  text = text.replace(
+    /\b(\d[\d,.]*\s+(?:points?|goals?|assists?|saves?|chances?|opportunities?|starts?|games?))\s+(reflects?|means?|suggests?|represents?|indicates?)\b/gi,
+    (_, statPhrase, verb) => {
+      const plural = verb.toLowerCase().endsWith("s")
+        ? verb.slice(0, -1)   // "reflects" → "reflect", "means" → "mean"
+        : verb;
+      return `${statPhrase} ${plural}`;
+    }
+  );
+
+  // "X and Y [verb]s" with compound subjects → plural verb
+  // Matches: "his -29 +/- and 20 PP points means", "Robertson and Johnston means"
+  text = text.replace(
+    /\b((?:[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*|his|her|their)\s+[^.]+?\s+and\s+[^.]+?)\s+(reflects?|means?|suggests?|represents?|indicates?)\b/g,
+    (match, subject, verb) => {
+      // Only fix if the verb ends in "s" (singular form being used with plural subject)
+      if (!verb.toLowerCase().endsWith("s")) return match;
+      const plural = verb.slice(0, -1);
+      return `${subject} ${plural}`;
+    }
+  );
+
+  return text;
+}
+
 export async function POST(req: NextRequest) {
   const input: ReportInput = await req.json();
   const { prompt, titlePrefill } = buildReportPrompt(input);
@@ -147,6 +180,10 @@ export async function POST(req: NextRequest) {
     // Validation or correction failed — deliver the original rather than blocking
     finalBody = rawBody;
   }
+
+  // Deterministic grammar pass — fixes subject-verb agreement on stat phrases
+  // before delivery; no LLM needed for these patterns.
+  finalBody = fixGrammar(finalBody);
 
   // Stream the final body to the client
   const readable = new ReadableStream({

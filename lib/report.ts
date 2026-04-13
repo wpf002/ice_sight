@@ -1,6 +1,63 @@
-import { ReportInput } from "@/types";
+import { ReportInput, TeamAdvancedStats } from "@/types";
 import { formatStatsForPrompt } from "./moneypuck";
 import { formatPersonnelForPrompt, formatFaceoffForPrompt, formatHeadToHeadForPrompt } from "./nhl";
+
+// ── League-average baselines ───────────────────────────────────────────────
+const LEAGUE_PP_AVG  = 21.5;   // NHL average PP conversion %
+const LEAGUE_PK_AVG  = 82.5;   // NHL average PK %
+
+function ppLabel(pct: number, team: string): string {
+  const avg = LEAGUE_PP_AVG.toFixed(1);
+  if (pct >= 26)   return `${team} PP ${pct.toFixed(1)}%: ELITE — well above league-average ${avg}%`;
+  if (pct >= 23)   return `${team} PP ${pct.toFixed(1)}%: above league-average ${avg}%`;
+  if (pct >= 21)   return `${team} PP ${pct.toFixed(1)}%: slightly below league-average ${avg}%`;
+  if (pct >= 18)   return `${team} PP ${pct.toFixed(1)}%: below league-average ${avg}% — a weakness`;
+  return           `${team} PP ${pct.toFixed(1)}%: well below league-average ${avg}% — a significant weakness`;
+}
+
+function pkLabel(pct: number, team: string): string {
+  const avg = LEAGUE_PK_AVG.toFixed(1);
+  if (pct >= 86)   return `${team} PK ${pct.toFixed(1)}%: ELITE — well above league-average ${avg}%`;
+  if (pct >= 83.5) return `${team} PK ${pct.toFixed(1)}%: above league-average ${avg}%`;
+  if (pct >= 81)   return `${team} PK ${pct.toFixed(1)}%: roughly league-average — marginally below ${avg}%`;
+  if (pct >= 78)   return `${team} PK ${pct.toFixed(1)}%: below league-average ${avg}%`;
+  return           `${team} PK ${pct.toFixed(1)}%: well below league-average ${avg}% — a clear liability`;
+}
+
+function edgeLabel(myVal: number, oppVal: number, higherIsBetter = true): string {
+  const diff = higherIsBetter ? myVal - oppVal : oppVal - myVal;
+  if (diff >  0.6) return "significant advantage";
+  if (diff >  0.25) return "clear advantage";
+  if (diff >  0.05) return "slight advantage";
+  if (diff > -0.05) return "roughly equal";
+  if (diff > -0.25) return "slight deficit";
+  if (diff > -0.6)  return "clear deficit";
+  return "significant deficit";
+}
+
+function buildBenchmarks(
+  myTeam: string,
+  oppTeam: string,
+  my: TeamAdvancedStats,
+  opp: TeamAdvancedStats,
+): string {
+  const gfEdge = edgeLabel(my.goalsForPerGame, opp.goalsForPerGame);
+  const gaEdge = edgeLabel(my.goalsAgainstPerGame, opp.goalsAgainstPerGame, false);
+  const posEdge = edgeLabel(my.corsiPercentage, opp.corsiPercentage);
+
+  return `\nBENCHMARK VERDICTS — copy these characterizations verbatim when referencing these stats:
+${ppLabel(my.powerPlayPct, myTeam)}
+${ppLabel(opp.powerPlayPct, oppTeam)}
+${pkLabel(my.penaltyKillPct, myTeam)}
+${pkLabel(opp.penaltyKillPct, oppTeam)}
+Goals scored/game: ${myTeam} ${my.goalsForPerGame.toFixed(2)} vs ${oppTeam} ${opp.goalsForPerGame.toFixed(2)} — ${gfEdge} for ${myTeam}
+Goals allowed/game: ${myTeam} ${my.goalsAgainstPerGame.toFixed(2)} vs ${oppTeam} ${opp.goalsAgainstPerGame.toFixed(2)} — ${gaEdge} for ${myTeam}
+Possession (shots%): ${myTeam} ${my.corsiPercentage.toFixed(1)}% vs ${oppTeam} ${opp.corsiPercentage.toFixed(1)}% — ${posEdge} for ${myTeam}
+5v5 SV% league-average: .919 — above = above average; below = below average
+PP-against SV% league-average: ~.880 (average band .875–.895)
+When citing ${myTeam}'s recent record, copy the EXACT label from the "OUR LAST 10 GAMES" block — do not rephrase or invent a different record.`
+    .trim();
+}
 
 interface ReportPrompt {
   prompt: string;
@@ -25,7 +82,9 @@ ${input.opponentPersonnel ? "\n" + formatPersonnelForPrompt(input.opponentPerson
 OUR LAST 10 GAMES
 ${input.recentGames}
 ${input.headToHead ? `\n${formatHeadToHeadForPrompt(input.headToHead, myTeam, oppTeam)}` : ""}
-${input.additionalContext ? `\nSCOUT NOTES\n${input.additionalContext}` : ""}`.trim();
+${input.additionalContext ? `\nSCOUT NOTES\n${input.additionalContext}` : ""}
+
+${buildBenchmarks(myTeam, oppTeam, input.myTeamStats, input.opponentStats)}`.trim();
 
   if (input.reportType === "pregame") {
     return buildPregamePrompt(myTeam, oppTeam, venue, input, statsBlock);
