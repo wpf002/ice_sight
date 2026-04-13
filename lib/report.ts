@@ -1,5 +1,6 @@
 import { ReportInput } from "@/types";
 import { formatStatsForPrompt } from "./moneypuck";
+import { formatPersonnelForPrompt } from "./nhl";
 
 interface ReportPrompt {
   prompt: string;
@@ -13,9 +14,11 @@ export function buildReportPrompt(input: ReportInput): ReportPrompt {
 
   const statsBlock = `OUR TEAM (${myTeam})
 ${formatStatsForPrompt(input.myTeamStats)}
+${input.myTeamPersonnel ? "\n" + formatPersonnelForPrompt(input.myTeamPersonnel) : ""}
 
 OPPONENT (${oppTeam})
 ${formatStatsForPrompt(input.opponentStats)}
+${input.opponentPersonnel ? "\n" + formatPersonnelForPrompt(input.opponentPersonnel) : ""}
 
 OUR LAST 5 GAMES
 ${input.recentGames}

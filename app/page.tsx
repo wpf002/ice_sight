@@ -49,14 +49,18 @@ export default function HomePage() {
       const recentRes  = await fetch(`/api/nhl?action=recent&abbrev=${myTeamId}`);
       const recentData = await recentRes.json();
 
-      setLoadingStep("Loading advanced stats from MoneyPuck...");
-      const [myStatsRes, oppStatsRes] = await Promise.all([
+      setLoadingStep("Loading stats and player data...");
+      const [myStatsRes, oppStatsRes, myPersonnelRes, oppPersonnelRes] = await Promise.all([
         fetch(`/api/moneypuck?team=${myTeamId}`),
         fetch(`/api/moneypuck?team=${opponentId}`),
+        fetch(`/api/nhl?action=personnel&abbrev=${myTeamId}`),
+        fetch(`/api/nhl?action=personnel&abbrev=${opponentId}`),
       ]);
 
-      const myStatsData  = await myStatsRes.json();
-      const oppStatsData = await oppStatsRes.json();
+      const myStatsData      = await myStatsRes.json();
+      const oppStatsData     = await oppStatsRes.json();
+      const myPersonnelData  = await myPersonnelRes.json();
+      const oppPersonnelData = await oppPersonnelRes.json();
 
       // Fallback is only used if the NHL stats API is down — these are league averages, not team-specific
       const fallback = (team: string): TeamAdvancedStats => ({
@@ -75,6 +79,8 @@ export default function HomePage() {
         homeTeam:   myTeamSide === "home" ? myTeam : opponent,
         awayTeam:   myTeamSide === "away" ? myTeam : opponent,
         myTeamSide, gameDate, myTeamStats, opponentStats,
+        myTeamPersonnel:   myPersonnelData.personnel  ?? undefined,
+        opponentPersonnel: oppPersonnelData.personnel ?? undefined,
         recentGames: recentData.text ?? "No recent games found.",
         additionalContext: context || undefined,
         ...(reportType === "postgame" && {

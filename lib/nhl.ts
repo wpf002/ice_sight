@@ -1,6 +1,21 @@
-import { NHLGame, NHLTeam } from "@/types";
+import { NHLGame, NHLGoalie, NHLSkater, NHLTeam, TeamPersonnel } from "@/types";
 
-const NHL_API = "https://api-web.nhle.com/v1";
+const NHL_API   = "https://api-web.nhle.com/v1";
+const NHL_STATS = "https://api.nhle.com/stats/rest/en";
+
+function currentSeasonId(): string {
+  const now   = new Date();
+  const month = now.getMonth() + 1;
+  const year  = now.getFullYear();
+  const start = month >= 10 ? year : year - 1;
+  return `${start}${start + 1}`;
+}
+
+function formatToi(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = Math.round(seconds % 60);
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
 
 // ── Teams ──────────────────────────────────────────────────────────────────
 // Pull from standings so we always get current season teams with abbreviations
@@ -23,6 +38,74 @@ export async function getTeams(): Promise<NHLTeam[]> {
       teamName: common,
     };
   }).sort((a, b) => a.name.localeCompare(b.name));
+}
+
+// ── Player personnel ───────────────────────────────────────────────────────
+export async function getTeamPersonnel(teamAbbrev: string): Promise<TeamPersonnel> {
+  const season  = currentSeasonId();
+  const abbrev  = teamAbbrev.toUpperCase();
+  const cayenne = encodeURIComponent(
+    `seasonId=${season} and gameTypeId=2 and teamAbbrevs="${abbrev}"`
+  );
+
+  const [skatersRes, goalieRes] = await Promise.all([
+    fetch(`${NHL_STATS}/skater/summary?cayenneExp=${cayenne}&sort=points&limit=25`, { next: { revalidate: 3600 } }),
+    fetch(`${NHL_STATS}/goalie/summary?cayenneExp=${cayenne}&sort=gamesStarted&limit=3`,  { next: { revalidate: 3600 } }),
+  ]);
+
+  const skatersData = skatersRes.ok ? await skatersRes.json() : { data: [] };
+  const goalieData  = goalieRes.ok  ? await goalieRes.json()  : { data: [] };
+
+  const allSkaters: NHLSkater[] = (skatersData.data as Record<string, unknown>[]).map((s) => ({
+    name:                  s.skaterFullName as string,
+    position:              s.positionCode as string,
+    gamesPlayed:           s.gamesPlayed as number,
+    goals:                 s.goals as number,
+    assists:               s.assists as number,
+    points:                s.points as number,
+    toiPerGame:            s.timeOnIcePerGame as number,
+    powerPlayPoints:       (s.powerPlayPoints as number) ?? 0,
+    shorthandedToiPerGame: (s.shorthandedTimeOnIcePerGame as number) ?? 0,
+  }));
+
+  const forwards   = allSkaters.filter((s) => ["C", "L", "R"].includes(s.position)).slice(0, 5);
+  const defensemen = allSkaters.filter((s) => s.position === "D").slice(0, 3);
+
+  const raw = (goalieData.data as Record<string, unknown>[])[0] ?? null;
+  const goalie: NHLGoalie | null = raw ? {
+    name:                raw.goalieFullName as string,
+    gamesStarted:        raw.gamesStarted as number,
+    wins:                raw.wins as number,
+    losses:              raw.losses as number,
+    otLosses:            raw.otLosses as number,
+    savePct:             raw.savePct as number,
+    goalsAgainstAverage: raw.goalsAgainstAverage as number,
+    shutouts:            raw.shutouts as number,
+  } : null;
+
+  return { team: abbrev, forwards, defensemen, goalie };
+}
+
+export function formatPersonnelForPrompt(p: TeamPersonnel): string {
+  const fwds = p.forwards.map((s) =>
+    `  ${s.name} (${s.position}) — ${s.gamesPlayed} GP, ${s.goals}G-${s.assists}A-${s.points}Pts, ${formatToi(s.toiPerGame)}/gm, ${s.powerPlayPoints} PP pts`
+  ).join("\n");
+
+  const dmen = p.defensemen.map((s) =>
+    `  ${s.name} (D) — ${s.gamesPlayed} GP, ${s.goals}G-${s.assists}A-${s.points}Pts, ${formatToi(s.toiPerGame)}/gm, ${s.powerPlayPoints} PP pts`
+  ).join("\n");
+
+  const gtdr = p.goalie
+    ? `  ${p.goalie.name} — ${p.goalie.gamesStarted} GS, ${p.goalie.wins}-${p.goalie.losses}-${p.goalie.otLosses} (W-L-OT), ${p.goalie.savePct.toFixed(3)} SV%, ${p.goalie.goalsAgainstAverage.toFixed(2)} GAA, ${p.goalie.shutouts} SO`
+    : "  Not available";
+
+  return `Key Personnel:
+Top Forwards (by points):
+${fwds}
+Top Defensemen (by points):
+${dmen}
+Starting Goaltender:
+${gtdr}`;
 }
 
 // ── Recent games ───────────────────────────────────────────────────────────

@@ -6,6 +6,36 @@ export interface NHLTeam {
   teamName: string;
 }
 
+export interface NHLSkater {
+  name: string;
+  position: string;           // C | L | R | D
+  gamesPlayed: number;
+  goals: number;
+  assists: number;
+  points: number;
+  toiPerGame: number;         // seconds
+  powerPlayPoints: number;
+  shorthandedToiPerGame: number;  // seconds — identifies PK specialists
+}
+
+export interface NHLGoalie {
+  name: string;
+  gamesStarted: number;
+  wins: number;
+  losses: number;
+  otLosses: number;
+  savePct: number;
+  goalsAgainstAverage: number;
+  shutouts: number;
+}
+
+export interface TeamPersonnel {
+  team: string;
+  forwards: NHLSkater[];    // top 5 by points
+  defensemen: NHLSkater[];  // top 3 by points
+  goalie: NHLGoalie | null;
+}
+
 export interface NHLGame {
   id: number;
   gameDate: string;
@@ -42,6 +72,8 @@ export interface ReportInput {
   myTeamStats: TeamAdvancedStats;
   opponentStats: TeamAdvancedStats;
   recentGames: string;
+  myTeamPersonnel?: TeamPersonnel;
+  opponentPersonnel?: TeamPersonnel;
   additionalContext?: string;
   // post-game only
   finalScore?: { myTeam: number; opponent: number };
