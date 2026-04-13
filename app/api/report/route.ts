@@ -73,15 +73,20 @@ Absolute rules:
 - Dataset-scope superlatives: "in this matchup" is a dataset scope phrase when used to qualify a superlative. "The highest such total in this matchup" is wrong — it means "the highest of two values", which is not a meaningful superlative. Write "Toronto has surrendered 7 shorthanded goals against — more than Dallas's X" (if the comparison is available) or simply state the number and its tactical implication without ranking it.
 - Head-to-head citation clarity: when citing head-to-head data, clearly distinguish between a series record (wins/losses) and a game score. "Dallas owns the season series 3-1" means three wins and one loss. "Dallas won 5-1 in the last meeting" means the game ended 5-1. Never use a game score in a context that implies it is a series record. The phrase "season-series win" must never immediately follow a game score like "5-1" — it creates the false impression of a 5-1 series record. Correct: "a 5-1 victory in the last meeting." Wrong: "a 5-1 season-series win." If the provided data gives both a series record and a last-meeting result, cite them separately: "Dallas leads the season series 3-1, including a 5-1 win in the last meeting."
 - Playoff / postseason framing: never characterize a game as a playoff game, a postseason game, or "entering the postseason" unless that context is explicitly stated in the provided data. Regular-season data has no inherent playoff implication. Do not write "a team playing its best hockey entering the postseason", "a playoff-caliber team", "postseason intensity", or any similar framing unless the prompt explicitly identifies the game as a playoff game.
-- Goalie-section attribution: the goalie on ice when Dallas kills penalties is Oettinger — cite Oettinger's PP-against SV% in the Penalty Kill section. The goalie on ice when Dallas is on the power play is the opponent's goalie (e.g. Woll) — cite the opponent's goalie stats in the Power Play section. Never cite an opponent goalie's save percentage in Dallas's Penalty Kill section, and never cite Oettinger's PP-against SV% in Dallas's Power Play section. The tactical logic: if Toronto is on the power play, Oettinger faces the shots — his PP-against SV% is the relevant number for PK planning. If Dallas is on the power play, the opponent's goalie faces the shots — their PP-against SV% informs Dallas's attack strategy.`;
+- Goalie-section attribution: the goalie on ice when Dallas kills penalties is Oettinger — cite Oettinger's PP-against SV% in the Penalty Kill section. The goalie on ice when Dallas is on the power play is the opponent's goalie (e.g. Woll) — cite the opponent's goalie stats in the Power Play section. Never cite an opponent goalie's save percentage in Dallas's Penalty Kill section, and never cite Oettinger's PP-against SV% in Dallas's Power Play section. The tactical logic: if Toronto is on the power play, Oettinger faces the shots — his PP-against SV% is the relevant number for PK planning. If Dallas is on the power play, the opponent's goalie faces the shots — their PP-against SV% informs Dallas's attack strategy.
+- Post-game conditional speculation: a post-game report covers a game that has already been played. Never use conditional or probabilistic framing about what happened tonight. These phrases are forbidden in post-game reports: "if he was deployed correctly", "if he was held off the scoresheet", "if he dominated possession", "was likely on the ice for", "was probably on the ice", "if his opportunities were not created." If play-by-play data is not provided, state the final result and its meaning using season stats — do not guess at what specifically occurred. Write "Utah scored once against a fatigued back-to-back goaltender — an unacceptable return on that opportunity" not "if Guenther was held off the scoresheet, that is a matchup problem."
+- Post-game schedule: never write "the final game", "last game of the season", "final game of the year", or "one game remaining" in a post-game report unless that information is explicitly stated in the prompt. Write "next game" or "going forward" instead.
+- Post-game opening structure: your response must begin with 2–3 sentences of plain prose summarizing what happened and what it means — no section heading before this prose, no preamble, no title. The first ## heading in a post-game report is ## What Worked. These 2–3 sentences appear before it. Never jump directly to ## What Worked without the opening prose.
+- Post-game list numbering: the Adjustments for Next Game section uses a numbered list. Number items 1, 2, 3 in strict sequence. Never repeat the same number (1, 1, 1 is wrong — it must be 1, 2, 3).`;
 
 // Phrase-based checks are now handled deterministically in scanBannedPhrases() below.
 // The Haiku validator is kept only for checks that require language understanding.
-const VALIDATOR_SYSTEM = `You are a quality-control checker for internal NHL scouting reports. Check for ONLY these three issues that require language understanding:
+const VALIDATOR_SYSTEM = `You are a quality-control checker for internal NHL scouting reports. Check for ONLY these four issues that require language understanding:
 
 1. SHG proximity: Scan every sentence that contains "penalty kill" or "PK". Does that sentence also mention "shorthanded goals against", "SHG against", or "surrendered X shorthanded"? If so, flag it. SHG-against belongs to the POWER PLAY unit, never the penalty kill.
 2. SV% inversion: Does any sentence describe a numerically higher save percentage as "more damaging", "more concerning", or "more damning" than a lower one? Higher SV% is always better — .904 > .884, so .904 is never the weaker number.
 3. Last-N arithmetic: Find ALL "last [number]" phrases (e.g. "last five", "last 10", "last three"). For each, locate the W-L-OT record nearby. Add W+L+OT. If the sum ≠ N, flag it. Examples: "5-1 run over their last five" → 5+1=6 ≠ 5 → flag. "6W-2L-1OT over his last nine" → 9=9 → OK.
+4. Post-game conditional speculation: In a POST-GAME report (look for "Post-Game Debrief" in the content), find any sentence using conditional or probabilistic past-tense framing about game events: "if he was deployed", "if he was held off", "if his opportunities were not created", "was likely on the ice for [goals]", "was probably on the ice". These are guesses about a completed game and are forbidden. Flag each instance.
 
 Return ONLY valid JSON — no explanation, no commentary:
 - If no issues: {"valid":true}
@@ -114,6 +119,9 @@ function scanBannedPhrases(text: string): string[] {
       "skaters in this data",
       "skaters in the data",
       "clearest number in this",
+      "unit in this matchup",   // catches "the most aggressive unit in this matchup" etc.
+      "team in this matchup",
+      "player in this matchup",
     ],
     (p) => `Dataset qualifier: remove the phrase "${p}" and describe the scope as "among Toronto's forwards" or "among Dallas's defensemen" instead — never use dataset scope language`
   );
@@ -170,6 +178,12 @@ function scanBannedPhrases(text: string): string[] {
   check(
     ["— no,", "on the opponent side:", "— correction:", "— actually,", "— wait,"],
     (p) => `Self-correction artifact: "${p}" — remove this inline correction; write the correct statement from scratch`
+  );
+
+  // Post-game schedule assertions — remaining games must be explicitly stated in the prompt
+  check(
+    ["the final game", "last game of the season", "final game of the year", "final regular season game", "one game remaining", "one more game remaining"],
+    (p) => `Schedule assertion: "${p}" — do not assert remaining schedule unless explicitly provided in the prompt; write "next game" or "going forward" instead`
   );
 
   return issues;
