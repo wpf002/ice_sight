@@ -137,8 +137,8 @@ export function formatStatsForPrompt(stats: TeamAdvancedStats): string {
     stats.shootingPct !== undefined
       ? `Team Shooting%: ${stats.shootingPct.toFixed(1)}%`
       : null,
-    `Shots Taken/Game (this team's offense): ${stats.shotsForPerGame.toFixed(1)}`,
-    `Shots Allowed/Game (this team's defense): ${stats.shotsAgainstPerGame.toFixed(1)}`,
+    `Shots Generated/Game (this team's offensive output): ${stats.shotsForPerGame.toFixed(1)}`,
+    `Shots Conceded/Game (opponent shots ON this team's net — defensive burden, NOT this team's offense): ${stats.shotsAgainstPerGame.toFixed(1)}`,
     `Shots% (possession proxy): ${stats.corsiPercentage.toFixed(1)}%`,
     `Power Play%: ${stats.powerPlayPct.toFixed(1)}%`,
     stats.ppOpportunitiesPerGame !== undefined
