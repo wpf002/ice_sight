@@ -201,7 +201,26 @@ function fixGrammar(text: string): string {
 }
 
 export async function POST(req: NextRequest) {
-  const input: ReportInput = await req.json();
+  let input: ReportInput;
+  try {
+    input = await req.json();
+  } catch {
+    return new Response("Invalid request body", { status: 400 });
+  }
+
+  try {
+    return await generateReport(input);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("[report/route] Generation failed:", message);
+    return new Response(
+      JSON.stringify({ error: message }),
+      { status: 500, headers: { "Content-Type": "application/json" } }
+    );
+  }
+}
+
+async function generateReport(input: ReportInput): Promise<Response> {
   const { prompt, titlePrefill } = buildReportPrompt(input);
 
   // Pass 1: Generate full report (non-streaming so we can validate before delivery)

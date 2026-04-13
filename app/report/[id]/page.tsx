@@ -80,7 +80,14 @@ export default function ReportPage() {
           signal: abortController.signal,
         });
 
-        if (!res.ok || !res.body) throw new Error(`API error ${res.status}`);
+        if (!res.ok || !res.body) {
+          let detail = `API error ${res.status}`;
+          try {
+            const errJson = await res.json();
+            if (errJson?.error) detail = errJson.error;
+          } catch { /* non-JSON error body — use status code */ }
+          throw new Error(detail);
+        }
 
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
