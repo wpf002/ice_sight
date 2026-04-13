@@ -41,6 +41,7 @@ Absolute rules:
 - Full name on first reference: every player must be introduced by their full name the first time they are named in each section. This rule applies to EVERY section without exception — Executive Summary, What They Do Well, Where They're Exploitable, Our Strengths, Threat Assessment, Power Play, Penalty Kill, Deployment Notes, Win Probability, and Keys to Victory each reset the rule independently. A player named in the Power Play section must be re-introduced by full name in the Penalty Kill section, and again in Deployment Notes, and again in Keys to Victory. There are no carry-overs between sections. "Nylander is the primary threat" is wrong if William Nylander has not yet been named in that section. Use "William Nylander is the primary threat." Subsequent references within the same section may use the last name only. Deployment Notes is a frequent failure point: even players introduced earlier in the report (Robertson, Johnston, Heiskanen, Oettinger, Matthews, Nylander, Tavares, Knies, Harley, Lindell) must be re-introduced with their full names the first time they appear in Deployment Notes.
 - Do not make claims about a player's career norms unless career data is provided in the prompt. "Nylander's 21 PP points is below his career standards" requires historical data to support. If only current-season stats are provided, compare within the current season only — or drop the career comparison entirely. This includes implied career comparisons: calling a player's stat total "limited" or "down" implies it is below their usual standard, which is a career claim. If 53 points in 60 games is the only data provided, describe it as what it is — 53 points in 60 games — not as "a limited season." This also includes injury inferences: do not write "a season limited by injury", "missing time due to injury", "despite appearing in only X games", or "in just X games" (when X is fewer than ~70) unless injury data is explicitly provided. A player appearing in 60 of 82 games is simply "in 60 games" — do not speculate about why. This also includes season extrapolations: never project a current-season total to "a full season" or "a full X-game season." If Tavares has 50 EV points in 60 games, write "50 EV points in 60 games" — not "adds 50 EV points across a full 80-game season." Season projections imply a career-level claim that the data cannot support.
 - Hockey terminology: the correct term for a player who wins face-offs is a "draw man" (plural: draw men). Never write "draws man" or "draws men."
+- Face-off ranking: before calling any player "the most dangerous draw man", "the best face-off center", or "the most dominant draw man", verify their face-off win rate is the highest among ALL named centers in the data. If another center in the provided data has a higher rate, that player holds the ranking. Example: if Tavares wins 57.5% but Matthews wins 59.7% and Hintz wins 59.1%, Tavares is not the best draw man — Matthews is.
 - Blue line PP role terminology: when describing a defenseman's role on the power play, use "point man", "PP quarterback", "blue line threat", or "shot threat from the point." Never use "defensive threat" to describe an offensive role — "defensive threat" means a player who defends well, not one who threatens offensively. A defenseman who quarterbacks the PP is an "offensive threat from the blue line" or a "point threat."
 - Opponent weakness framing: when describing how an opponent's weakness benefits Dallas, say "gives Dallas an advantage in the goaltending matchup" — not "gives the Stars a genuine edge in net." The latter implies your own goalie is the problem. The goalie matchup advantage comes from the opponent's weakness, not from something the opponent "gives" your net.
 - If the goalie data includes a BACK-TO-BACK flag (played last night), treat it as a significant tactical factor — flag it prominently in the Threat Assessment or Deployment Notes. Back-to-backs affect both performance and lineup decisions.
@@ -67,20 +68,75 @@ Absolute rules:
 - Power play leadership precision: when identifying who leads a team's power play, distinguish between the full-unit leader (most PP points among all skaters) and the blue line leader (most PP points among defensemen). Never say a defenseman "leads the power play" when a forward has more PP points. Correct: "leads Toronto's blue line on the PP." Wrong: "leads Toronto's power play" when a forward has more PP points.
 - Executive Summary stat construction: when presenting both teams' offensive and defensive stats, use parallel construction within each team before comparing. Example: "Dallas scores 3.1 goals per game and allows 2.5; Toronto scores 2.8 and allows 3.0." Do not mix "against" and "versus" in the same comparative clause.`;
 
-const VALIDATOR_SYSTEM = `You are a quality-control checker for internal NHL scouting reports. Check the report for ONLY these eight issues:
+// Phrase-based checks are now handled deterministically in scanBannedPhrases() below.
+// The Haiku validator is kept only for checks that require language understanding.
+const VALIDATOR_SYSTEM = `You are a quality-control checker for internal NHL scouting reports. Check for ONLY these three issues that require language understanding:
 
-1. SHG proximity: Find every sentence that contains the word "penalty kill" (or "PK"). Does that sentence also contain "shorthanded goals against" or "SHG against" or "surrendered X shorthanded"? If so, flag it — those concepts must never appear in the same sentence. SHG against belong to the POWER PLAY unit, not the penalty kill. Scan every sentence independently.
-2. SV% inversion: Does any sentence call a numerically higher save percentage "more damaging", "more concerning", or "more damning" than a lower one? (Higher SV% is always better — .904 > .884, so .904 is never the weaker number.)
-3. Dataset qualifier: Scan the full text character-by-character for these exact substrings: "in this data" (catches "in this dataset", "in this data set", "in this matchup's data", "in this data provided"), "skaters in this data", "skaters in the data", "clearest number in this". If ANY of these substrings appear anywhere in the text, flag it.
-4. Injury inference: Scan the full text for these EXACT substrings: "despite appearing in only", "limited by injury", "missing time due", "in just", "a season limited". If ANY of these substrings appear anywhere in the text, flag it immediately — do not try to interpret context.
-5. Self-correction artifact: Does the report contain a visible mid-sentence correction? Look for these exact patterns: "— no,", "on the opponent side:", "— correction:", "— actually,", "— wait,". Any of these mid-sentence corrections must be flagged.
-6. Last-N arithmetic: Find ALL occurrences of "last [number]" where [number] is a word or digit (e.g. "last five", "last 5", "last ten", "last 10", "last six", "last three"). For EACH occurrence, locate the W-L-OT record near it. Add W + L + OT. If the sum ≠ N, flag it with the specific numbers. Examples: "5-1 run over their last five" → 5+1=6 ≠ 5 → flag. "2W-5L-3OT over the last ten" → 2+5+3=10 → OK. "6W-2L-1OT over his last nine" → 6+2+1=9 = 9 → OK. Check EVERY "last N" phrase — not just the first one.
-7. Informal language: Scan for these exact substrings: "doesn't deserve", "don't deserve", "does not deserve", "do not deserve", "undeserved", "got lucky", "doesn't merit", "does not merit". If any appear, flag it.
-8. Season extrapolation: Does the report contain "over a full season", "across a full season", "in a full season", "full 80-game", "full 82-game", "over a full year", or "across a full year"? Scan for these exact substrings. If any appear, flag it.
+1. SHG proximity: Scan every sentence that contains "penalty kill" or "PK". Does that sentence also mention "shorthanded goals against", "SHG against", or "surrendered X shorthanded"? If so, flag it. SHG-against belongs to the POWER PLAY unit, never the penalty kill.
+2. SV% inversion: Does any sentence describe a numerically higher save percentage as "more damaging", "more concerning", or "more damning" than a lower one? Higher SV% is always better — .904 > .884, so .904 is never the weaker number.
+3. Last-N arithmetic: Find ALL "last [number]" phrases (e.g. "last five", "last 10", "last three"). For each, locate the W-L-OT record nearby. Add W+L+OT. If the sum ≠ N, flag it. Examples: "5-1 run over their last five" → 5+1=6 ≠ 5 → flag. "6W-2L-1OT over his last nine" → 9=9 → OK.
 
 Return ONLY valid JSON — no explanation, no commentary:
 - If no issues: {"valid":true}
 - If issues found: {"valid":false,"issues":["concise description of issue 1","concise description of issue 2",...]}`;
+
+/**
+ * Deterministic phrase scanner — catches rule violations that are exact string matches.
+ * Does not call any LLM. Returns issue descriptions suitable for the correction pass.
+ */
+function scanBannedPhrases(text: string): string[] {
+  const issues: string[] = [];
+  const lower = text.toLowerCase();
+
+  const check = (phrases: string[], issueTemplate: (p: string) => string) => {
+    for (const phrase of phrases) {
+      if (lower.includes(phrase.toLowerCase())) {
+        issues.push(issueTemplate(phrase));
+        break; // one flag per category is enough
+      }
+    }
+  };
+
+  // Dataset scope qualifiers
+  check(
+    [
+      "in this data",           // catches "in this data", "in this dataset", "in this data set",
+                                //  "in this data provided", "leads all skaters in this data"
+      "in this matchup's data",
+      "in the data provided",
+      "skaters in this data",
+      "skaters in the data",
+      "clearest number in this",
+    ],
+    (p) => `Dataset qualifier: remove the phrase "${p}" and describe the scope as "among Toronto's forwards" or "among Dallas's defensemen" instead — never use dataset scope language`
+  );
+
+  // Injury / games-played inference
+  check(
+    ["despite appearing in only", "limited by injury", "missing time due", "a season limited"],
+    (p) => `Injury inference: "${p}" — the data doesn't include injury information; just cite the games played number without speculating why it's low`
+  );
+
+  // Season extrapolation
+  check(
+    ["over a full season", "across a full season", "in a full season", "full 80-game", "full 82-game"],
+    (p) => `Season extrapolation: "${p}" — remove the season projection; write "that rate is not sustainable" instead`
+  );
+
+  // Informal / value-laden language
+  check(
+    ["doesn't deserve", "don't deserve", "does not deserve", "do not deserve", "undeserved", "got lucky"],
+    (p) => `Informal language: "${p}" — replace with a tactical description of the situation`
+  );
+
+  // Inline self-correction artifacts
+  check(
+    ["— no,", "on the opponent side:", "— correction:", "— actually,", "— wait,"],
+    (p) => `Self-correction artifact: "${p}" — remove this inline correction; write the correct statement from scratch`
+  );
+
+  return issues;
+}
 
 const CORRECTOR_SYSTEM = `You are editing an internal NHL scouting report to fix specific identified issues. Rules:
 - Fix ONLY the sentences containing the listed issues. Change nothing else.
@@ -136,8 +192,11 @@ export async function POST(req: NextRequest) {
   const rawBody =
     generation.content[0].type === "text" ? generation.content[0].text : "";
 
-  // Pass 2: Validate with Haiku (fast, cheap checklist)
-  let finalBody = rawBody;
+  // Deterministic phrase scan — runs in-process, no LLM, no latency cost
+  const phraseIssues = scanBannedPhrases(rawBody);
+
+  // Pass 2: Haiku semantic checks (SHG proximity, SV% inversion, last-N arithmetic)
+  let semanticIssues: string[] = [];
   try {
     const validation = await client.messages.create({
       model: "claude-haiku-4-5-20251001",
@@ -152,10 +211,20 @@ export async function POST(req: NextRequest) {
         ? validation.content[0].text.trim()
         : '{"valid":true}';
     const result = JSON.parse(validationText);
+    if (!result.valid && Array.isArray(result.issues)) {
+      semanticIssues = result.issues;
+    }
+  } catch {
+    // Haiku failed — phrase issues still proceed to correction
+  }
 
-    if (!result.valid && Array.isArray(result.issues) && result.issues.length > 0) {
-      // Pass 3: Correct only the flagged issues
-      const issueList = result.issues
+  // Merge both issue sources; if any exist, run the correction pass
+  const allIssues = [...phraseIssues, ...semanticIssues];
+  let finalBody = rawBody;
+
+  if (allIssues.length > 0) {
+    try {
+      const issueList = allIssues
         .map((issue: string, i: number) => `${i + 1}. ${issue}`)
         .join("\n");
 
@@ -175,10 +244,10 @@ export async function POST(req: NextRequest) {
       if (correction.content[0].type === "text") {
         finalBody = correction.content[0].text;
       }
+    } catch {
+      // Correction failed — deliver the original rather than blocking
+      finalBody = rawBody;
     }
-  } catch {
-    // Validation or correction failed — deliver the original rather than blocking
-    finalBody = rawBody;
   }
 
   // Deterministic grammar pass — fixes subject-verb agreement on stat phrases
