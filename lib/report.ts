@@ -44,11 +44,12 @@ ${statsBlock}
 
 ---
 
-The report title is already written. Begin your response immediately with 2–3 sentences of executive summary — NO section heading before it, just the prose. Then continue with the sections below.
+The report title is already written. Follow the section structure below exactly.
 
 Copy every ## and ### heading exactly as written. Replace content in <angle brackets> with real analysis. Use **bold** for key numbers and names.
 
-<2–3 sentence executive summary — the single biggest data story of this matchup. Direct. No hedging.>
+## Executive Summary
+<2–3 sentences. The single biggest data story of this matchup. Direct. No hedging.>
 
 ## ${oppTeam} Breakdown
 

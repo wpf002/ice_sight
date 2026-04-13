@@ -30,7 +30,7 @@ export default function HomePage() {
   useEffect(() => {
     fetch("/api/nhl?action=teams")
       .then((r) => r.json())
-      .then((d) => setTeams(d.teams ?? []))
+      .then((d) => { setTeams(d.teams ?? []); setMyTeamId("DAL"); })
       .catch(() => setError("Failed to load teams — check NHL API connection"));
     setHistory(getHistory());
   }, []);
@@ -174,7 +174,14 @@ export default function HomePage() {
           }}>
             <div style={{ padding: "1.25rem 1.25rem 0.75rem", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <span style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: "0.8rem", letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--text-muted)" }}>Report History</span>
-              <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.6rem", color: "var(--text-dim)" }}>{history.length} reports</span>
+              <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
+                <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.6rem", color: "var(--text-dim)" }}>{history.length} reports</span>
+                <button onClick={() => setShowHistory(false)} style={{
+                  background: "none", border: "1px solid var(--border)", color: "var(--text-dim)",
+                  borderRadius: "3px", cursor: "pointer", padding: "2px 6px", fontSize: "0.65rem",
+                  lineHeight: 1, fontFamily: "var(--font-mono)",
+                }} title="Close history">✕</button>
+              </div>
             </div>
             {history.map((r) => (
               <div key={r.id} onClick={() => openReport(r)} style={{

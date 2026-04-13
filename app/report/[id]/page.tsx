@@ -700,6 +700,12 @@ export default function ReportPage() {
           .report-editor .report-table td { color: #333 !important; border-bottom-color: #eee !important; }
           .report-editor code { background: #f5f5f5 !important; color: #006847 !important; border-color: #ddd !important; }
           .report-editor blockquote { border-left-color: #006847 !important; color: #555 !important; }
+          /* Prevent orphaned headers and bisected content */
+          .report-editor h2, .report-editor h3 { break-after: avoid; page-break-after: avoid; }
+          .report-editor h2 { break-before: auto; page-break-before: auto; }
+          .report-editor .table-wrap { break-inside: avoid; page-break-inside: avoid; }
+          .report-editor li { break-inside: avoid; page-break-inside: avoid; }
+          .report-editor hr.section-rule { break-after: avoid; page-break-after: avoid; }
         }
       `}</style>
     </div>
