@@ -187,9 +187,16 @@ export function formatPersonnelForPrompt(p: TeamPersonnel): string {
           g.qualityStartPct !== undefined ? `QS%: ${(g.qualityStartPct * 100).toFixed(1)}%`  : null,
         ].filter(Boolean).join(" | ")
       : "";
-    const recent = g.recentForm
-      ? `\n    Last ${g.recentForm.games}: ${g.recentForm.wins}W-${g.recentForm.losses}L-${g.recentForm.otLosses}OT, ${g.recentForm.savePct.toFixed(3)} SV%, ${g.recentForm.goalsAgainstAverage.toFixed(2)} GAA`
-      : "";
+    const recent = (() => {
+      if (!g.recentForm) return "";
+      const rf = g.recentForm;
+      const decisions = rf.wins + rf.losses + rf.otLosses;
+      // Only use "Last N" label when W+L+OT = N (some starts have no decision)
+      const label = decisions === rf.games
+        ? `Last ${rf.games}`
+        : `Last ${decisions} decisions (${rf.games} starts)`;
+      return `\n    ${label}: ${rf.wins}W-${rf.losses}L-${rf.otLosses}OT, ${rf.savePct.toFixed(3)} SV%, ${rf.goalsAgainstAverage.toFixed(2)} GAA`;
+    })();
     const b2b = g.playedLastNight ? "\n    *** BACK-TO-BACK: Started last night ***" : "";
     gtdr = `  ${g.name} — ${g.gamesStarted} GS, ${record}, ${overall}${situational}${recent}${b2b}`;
   }

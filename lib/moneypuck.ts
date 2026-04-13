@@ -145,14 +145,14 @@ export function formatStatsForPrompt(stats: TeamAdvancedStats): string {
       ? `PP Opportunities/Game: ${stats.ppOpportunitiesPerGame.toFixed(2)}`
       : null,
     stats.shorthandedGoalsAgainst !== undefined
-      ? `SH Goals Against (goals scored vs this team while on PP): ${stats.shorthandedGoalsAgainst}`
+      ? `PP shorthanded goals surrendered — opponents scored SH while THIS TEAM was on the power play (reflects PP turnovers, NOT PK quality): ${stats.shorthandedGoalsAgainst}`
       : null,
     `Penalty Kill%: ${stats.penaltyKillPct.toFixed(1)}%`,
     stats.timesShorthandedPerGame !== undefined
       ? `Times Shorthanded/Game: ${stats.timesShorthandedPerGame.toFixed(2)}`
       : null,
     stats.shorthandedGoalsFor !== undefined
-      ? `SH Goals For (goals this team scores while shorthanded): ${stats.shorthandedGoalsFor}`
+      ? `PK shorthanded goals generated — THIS TEAM scored SH while killing penalties (reflects aggressive PK, NOT PP quality): ${stats.shorthandedGoalsFor}`
       : null,
   ];
   return lines.filter(Boolean).join("\n");
