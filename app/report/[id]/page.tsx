@@ -50,6 +50,9 @@ export default function ReportPage() {
     setStreaming(true);
 
     // Stream Claude's response directly into the editor
+    streamedText.current = "";
+    const abortController = new AbortController();
+
     (async () => {
       let renderTimer: ReturnType<typeof setTimeout> | null = null;
       const scheduleRender = () => {
@@ -68,6 +71,7 @@ export default function ReportPage() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(pending.reportInput),
+          signal: abortController.signal,
         });
 
         if (!res.ok || !res.body) throw new Error(`API error ${res.status}`);
@@ -103,6 +107,8 @@ export default function ReportPage() {
         setStreaming(false);
       }
     })();
+
+    return () => { abortController.abort(); };
   }, [id]);
 
   // Populate editor for completed (non-streamed) reports once div is in DOM

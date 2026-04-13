@@ -15,7 +15,11 @@ Absolute rules:
 - State conclusions. Never hedge.
 - Use ## for section headers, ### for sub-headers
 - Separate major sections with --- on its own line
-- NEVER create markdown tables. The only table in the report is the Special Teams one, which is pre-computed and provided to you verbatim — copy it exactly as given, make no changes to it.`;
+- NEVER create markdown tables. The only table in the report is the Special Teams one, which is pre-computed and provided to you verbatim — copy it exactly as given, make no changes to it.
+- Always include "per game" when citing a per-game rate (e.g. "3.08 goals for per game", never "3.08 goals for").
+- Never cite a stat to support a conclusion it doesn't logically support. If a claim can't be backed by the numbers provided, state it without a stat.
+- Zone specificity: never mix up "neutral zone" and "defensive zone" in the same clause. Pick the correct zone for the action described.
+- Every claim that needs an article gets one: "a secondary concern", "a volume of opportunities" — never drop the article before a noun phrase.`;
 
 export async function POST(req: NextRequest) {
   const input: ReportInput = await req.json();
