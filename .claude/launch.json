@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "icesight",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["next", "dev", "-p", "3006"],
+      "port": 3006
+    }
+  ]
+}
