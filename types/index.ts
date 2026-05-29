@@ -60,6 +60,15 @@ export interface NHLGame {
   gameOutcome?: { lastPeriodType: string };  // "REG" | "OT" | "SO"
 }
 
+export interface ShotQuality {
+  gamesAnalyzed: number;            // # of games whose play-by-play was read
+  highDangerForPerGame: number;     // slot/home-plate unblocked chances generated
+  highDangerAgainstPerGame: number; // slot/home-plate unblocked chances conceded
+  highDangerSharePct: number;       // for / (for + against) * 100
+  avgShotDistanceFor: number;       // ft — lower = closer/better looks
+  avgShotDistanceAgainst: number;   // ft — higher = pushed to perimeter (good defense)
+}
+
 export interface ScheduledGame {
   id: number;
   date: string;                    // YYYY-MM-DD
@@ -137,6 +146,8 @@ export interface ReportInput {
   opponentPersonnel?: TeamPersonnel;
   myTeamFaceoff?: TeamFaceoffStats;
   opponentFaceoff?: TeamFaceoffStats;
+  myTeamShotQuality?: ShotQuality;
+  opponentShotQuality?: ShotQuality;
   headToHead?: HeadToHeadRecord;
   additionalContext?: string;
   // post-game only

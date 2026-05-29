@@ -1,6 +1,7 @@
 import { ReportInput, TeamAdvancedStats } from "@/types";
 import { formatStatsForPrompt } from "./teamstats";
 import { formatPersonnelForPrompt, formatFaceoffForPrompt, formatHeadToHeadForPrompt } from "./nhl";
+import { formatShotQualityForPrompt } from "./shotquality";
 
 // ── League-average baselines ───────────────────────────────────────────────
 const LEAGUE_PP_AVG  = 21.5;   // NHL average PP conversion %
@@ -40,10 +41,18 @@ function buildBenchmarks(
   oppTeam: string,
   my: TeamAdvancedStats,
   opp: TeamAdvancedStats,
+  input: ReportInput,
 ): string {
   const gfEdge = edgeLabel(my.goalsForPerGame, opp.goalsForPerGame);
   const gaEdge = edgeLabel(my.goalsAgainstPerGame, opp.goalsAgainstPerGame, false);
   const posEdge = edgeLabel(my.shotsSharePct, opp.shotsSharePct);
+
+  // High-danger edge — only when both teams' play-by-play was available.
+  const mySq = input.myTeamShotQuality, oppSq = input.opponentShotQuality;
+  const hdLine =
+    mySq && oppSq && mySq.gamesAnalyzed > 0 && oppSq.gamesAnalyzed > 0
+      ? `\nHigh-danger chances/game (from shot coordinates): ${myTeam} generates ${mySq.highDangerForPerGame.toFixed(1)} & allows ${mySq.highDangerAgainstPerGame.toFixed(1)}; ${oppTeam} generates ${oppSq.highDangerForPerGame.toFixed(1)} & allows ${oppSq.highDangerAgainstPerGame.toFixed(1)} — ${edgeLabel(mySq.highDangerForPerGame, oppSq.highDangerForPerGame)} for ${myTeam} in chances generated`
+      : "";
 
   return `\nBENCHMARK VERDICTS — copy these characterizations verbatim when referencing these stats:
 ${ppLabel(my.powerPlayPct, myTeam)}
@@ -52,7 +61,7 @@ ${pkLabel(my.penaltyKillPct, myTeam)}
 ${pkLabel(opp.penaltyKillPct, oppTeam)}
 Goals scored/game: ${myTeam} ${my.goalsForPerGame.toFixed(2)} vs ${oppTeam} ${opp.goalsForPerGame.toFixed(2)} — ${gfEdge} for ${myTeam}
 Goals allowed/game: ${myTeam} ${my.goalsAgainstPerGame.toFixed(2)} vs ${oppTeam} ${opp.goalsAgainstPerGame.toFixed(2)} — ${gaEdge} for ${myTeam}
-Possession (shots%): ${myTeam} ${my.shotsSharePct.toFixed(1)}% vs ${oppTeam} ${opp.shotsSharePct.toFixed(1)}% — ${posEdge} for ${myTeam}
+Possession (shots%): ${myTeam} ${my.shotsSharePct.toFixed(1)}% vs ${oppTeam} ${opp.shotsSharePct.toFixed(1)}% — ${posEdge} for ${myTeam}${hdLine}
 5v5 SV% league-average: .919 — above = above average; below = below average
 PP-against SV% league-average: ~.880 (average band .875–.895)
 When citing ${myTeam}'s recent record, copy the EXACT label from the "OUR LAST 10 GAMES" block — do not rephrase or invent a different record.`
@@ -71,11 +80,13 @@ export function buildReportPrompt(input: ReportInput): ReportPrompt {
 
   const statsBlock = `OUR TEAM (${myTeam})
 ${formatStatsForPrompt(input.myTeamStats)}
+${input.myTeamShotQuality ? "\n" + formatShotQualityForPrompt(input.myTeamShotQuality) : ""}
 ${input.myTeamFaceoff ? "\n" + formatFaceoffForPrompt(input.myTeamFaceoff) : ""}
 ${input.myTeamPersonnel ? "\n" + formatPersonnelForPrompt(input.myTeamPersonnel) : ""}
 
 OPPONENT (${oppTeam})
 ${formatStatsForPrompt(input.opponentStats)}
+${input.opponentShotQuality ? "\n" + formatShotQualityForPrompt(input.opponentShotQuality) : ""}
 ${input.opponentFaceoff ? "\n" + formatFaceoffForPrompt(input.opponentFaceoff) : ""}
 ${input.opponentPersonnel ? "\n" + formatPersonnelForPrompt(input.opponentPersonnel) : ""}
 
@@ -84,7 +95,7 @@ ${input.recentGames}
 ${input.headToHead ? `\n${formatHeadToHeadForPrompt(input.headToHead, myTeam, oppTeam)}` : ""}
 ${input.additionalContext ? `\nSCOUT NOTES\n${input.additionalContext}` : ""}
 
-${buildBenchmarks(myTeam, oppTeam, input.myTeamStats, input.opponentStats)}`.trim();
+${buildBenchmarks(myTeam, oppTeam, input.myTeamStats, input.opponentStats, input)}`.trim();
 
   if (input.reportType === "pregame") {
     return buildPregamePrompt(myTeam, oppTeam, venue, input, statsBlock);

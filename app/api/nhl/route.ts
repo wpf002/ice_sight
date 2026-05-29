@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getTeams, getRecentGames, getUpcomingGames, formatRecentGamesText, getTeamPersonnel, getTeamFaceoffStats, getHeadToHead, getSchedule } from "@/lib/nhl";
+import { getShotQuality } from "@/lib/shotquality";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -38,6 +39,13 @@ export async function GET(req: NextRequest) {
       if (!abbrev) return NextResponse.json({ error: "abbrev required" }, { status: 400 });
       const personnel = await getTeamPersonnel(abbrev);
       return NextResponse.json({ personnel });
+    }
+
+    if (action === "shotquality") {
+      const abbrev = searchParams.get("abbrev");
+      if (!abbrev) return NextResponse.json({ error: "abbrev required" }, { status: 400 });
+      const shotQuality = await getShotQuality(abbrev);
+      return NextResponse.json({ shotQuality });
     }
 
     if (action === "faceoff") {
