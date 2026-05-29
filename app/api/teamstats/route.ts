@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAllTeamStats, getTeamStats } from "@/lib/moneypuck";
+import { getAllTeamStats, getTeamStats } from "@/lib/teamstats";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -8,13 +8,13 @@ export async function GET(req: NextRequest) {
   try {
     if (team) {
       const stats = await getTeamStats(team);
-      if (!stats) return NextResponse.json({ error: `Team "${team}" not found in MoneyPuck data` }, { status: 404 });
+      if (!stats) return NextResponse.json({ error: `Team "${team}" not found in NHL stats data` }, { status: 404 });
       return NextResponse.json({ stats });
     }
     const all = await getAllTeamStats();
     return NextResponse.json({ stats: all });
   } catch (err) {
-    console.error("[MoneyPuck]", err);
+    console.error("[teamstats]", err);
     return NextResponse.json({ error: String(err) }, { status: 500 });
   }
 }

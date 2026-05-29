@@ -99,8 +99,8 @@ export default function HomePage() {
 
       setLoadingStep("Loading stats and player data...");
       const [myStatsRes, oppStatsRes, myPersonnelRes, oppPersonnelRes, myFaceoffRes, oppFaceoffRes, h2hRes] = await Promise.all([
-        fetch(`/api/moneypuck?team=${myTeamId}`),
-        fetch(`/api/moneypuck?team=${opponentId}`),
+        fetch(`/api/teamstats?team=${myTeamId}`),
+        fetch(`/api/teamstats?team=${opponentId}`),
         fetch(`/api/nhl?action=personnel&abbrev=${myTeamId}`),
         fetch(`/api/nhl?action=personnel&abbrev=${opponentId}`),
         fetch(`/api/nhl?action=faceoff&abbrev=${myTeamId}`),
@@ -118,10 +118,10 @@ export default function HomePage() {
 
       // Fallback is only used if the NHL stats API is down — these are league averages, not team-specific
       const fallback = (team: string): TeamAdvancedStats => ({
-        team, gamesPlayed: 80, xGoalsPercentage: 50, corsiPercentage: 50,
-        fenwickPercentage: 50, shotsForPerGame: 27, shotsAgainstPerGame: 27,
-        goalsForPerGame: 3.1, goalsAgainstPerGame: 3.1, xGoalsFor: 248, xGoalsAgainst: 248,
-        highDangerShotsFor: 504, highDangerShotsAgainst: 504, powerPlayPct: 20.5, penaltyKillPct: 79.5,
+        team, gamesPlayed: 80, shotsSharePct: 50,
+        shotsForPerGame: 27, shotsAgainstPerGame: 27,
+        goalsForPerGame: 3.1, goalsAgainstPerGame: 3.1,
+        powerPlayPct: 20.5, penaltyKillPct: 79.5,
       });
 
       const myTeamStats  = myStatsData.stats  ?? fallback(myTeamId);

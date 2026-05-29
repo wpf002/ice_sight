@@ -1,10 +1,12 @@
 /**
- * Team statistics — sourced from the NHL's official stats REST API.
- * Previously used MoneyPuck CSVs, but that source requires a data license.
- * All numbers here are real NHL data: PP%, PK%, goals/game, shots/game, etc.
+ * Team statistics — sourced entirely from the NHL's official stats REST API
+ * (api.nhle.com/stats/rest/en). All numbers here are real NHL data: PP%, PK%,
+ * goals/game, shots/game, shooting%, special-teams volume.
  *
- * Advanced possession metrics (Corsi%, xGoals%) aren't available from the NHL
- * API, so we use shots% as a proxy, clearly labelled.
+ * True possession metrics (Corsi%, Fenwick%, xGoals%) and high-danger shot
+ * counts require a licensed data source (e.g. MoneyPuck) and are NOT provided
+ * here. Where a possession signal is needed we expose shotsSharePct — the
+ * share of total shots — as a directional proxy, clearly labelled as such.
  */
 import { TeamAdvancedStats } from "@/types";
 
@@ -90,18 +92,11 @@ export async function getAllTeamStats(): Promise<TeamAdvancedStats[]> {
     return {
       team:                   abbrev,
       gamesPlayed:            gp,
-      xGoalsPercentage:       shotsPct,
-      corsiPercentage:        shotsPct,
-      fenwickPercentage:      shotsPct,
+      shotsSharePct:          shotsPct,
       shotsForPerGame,
       shotsAgainstPerGame:    shotsAgtPerGame,
       goalsForPerGame:        t.goalsForPerGame as number,
       goalsAgainstPerGame:    t.goalsAgainstPerGame as number,
-      xGoalsFor:              goalsFor,
-      xGoalsAgainst:          t.goalsAgainst as number,
-      // High-danger shots not in NHL API; estimate at ~25% of total shots
-      highDangerShotsFor:     Math.round(totalShots * 0.25),
-      highDangerShotsAgainst: Math.round(totalShotsAgt * 0.25),
       powerPlayPct:           ppPct,
       penaltyKillPct:         pkPct,
       // Special teams volume
@@ -139,7 +134,7 @@ export function formatStatsForPrompt(stats: TeamAdvancedStats): string {
       : null,
     `Shots Generated/Game (this team's offensive output): ${stats.shotsForPerGame.toFixed(1)}`,
     `Shots Conceded/Game (opponent shots ON this team's net — defensive burden, NOT this team's offense): ${stats.shotsAgainstPerGame.toFixed(1)}`,
-    `Shots% (possession proxy): ${stats.corsiPercentage.toFixed(1)}%`,
+    `Shots% (possession proxy): ${stats.shotsSharePct.toFixed(1)}%`,
     `Power Play%: ${stats.powerPlayPct.toFixed(1)}%`,
     stats.ppOpportunitiesPerGame !== undefined
       ? `PP Opportunities/Game: ${stats.ppOpportunitiesPerGame.toFixed(2)}`

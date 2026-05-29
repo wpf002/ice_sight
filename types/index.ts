@@ -105,17 +105,14 @@ export interface HeadToHeadRecord {
 export interface TeamAdvancedStats {
   team: string;
   gamesPlayed: number;
-  xGoalsPercentage: number;
-  corsiPercentage: number;
-  fenwickPercentage: number;
+  // Share of total shots (shots for / (shots for + shots against)) * 100.
+  // A directional possession proxy derived from NHL shot totals — NOT a true
+  // Corsi/Fenwick/xGoals figure (those require a licensed data source).
+  shotsSharePct: number;
   shotsForPerGame: number;
   shotsAgainstPerGame: number;
   goalsForPerGame: number;
   goalsAgainstPerGame: number;
-  xGoalsFor: number;
-  xGoalsAgainst: number;
-  highDangerShotsFor: number;
-  highDangerShotsAgainst: number;
   powerPlayPct: number;
   penaltyKillPct: number;
   // Special teams volume — from PP/PK endpoints
