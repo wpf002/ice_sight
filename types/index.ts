@@ -60,6 +60,19 @@ export interface NHLGame {
   gameOutcome?: { lastPeriodType: string };  // "REG" | "OT" | "SO"
 }
 
+export interface ScheduledGame {
+  id: number;
+  date: string;                    // YYYY-MM-DD
+  opponent: string;                // opponent abbreviation
+  opponentName: string;            // opponent full name
+  myTeamSide: "home" | "away";     // which side the selected team is on
+  played: boolean;                 // game is final
+  live: boolean;                   // game is in progress
+  myScore?: number;                // selected team's score (final only)
+  oppScore?: number;               // opponent's score (final only)
+  outcome?: string;                // "REG" | "OT" | "SO"
+}
+
 export interface SkaterFaceoff {
   name: string;
   totalFaceoffs: number;

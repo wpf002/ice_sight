@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { NHLTeam, TeamAdvancedStats, GeneratedReport } from "@/types";
+import { NHLTeam, TeamAdvancedStats, GeneratedReport, ScheduledGame } from "@/types";
 import { getHistory, deleteFromHistory } from "@/lib/history";
+import { applyTeamTheme } from "@/lib/teamColors";
 
 export default function HomePage() {
   const router = useRouter();
@@ -20,6 +21,11 @@ export default function HomePage() {
   const [oppScore, setOppScore]         = useState("");
   const [gameNotes, setGameNotes]       = useState("");
 
+  // ── Schedule (drives matchup selection) ─────────────────────────────────────
+  const [schedule, setSchedule]           = useState<ScheduledGame[]>([]);
+  const [selectedGameId, setSelectedGameId] = useState("");
+  const [scheduleLoading, setScheduleLoading] = useState(false);
+
   // ── UI state ─────────────────────────────────────────────────────────────
   const [loading, setLoading]           = useState(false);
   const [loadingStep, setLoadingStep]   = useState("");
@@ -35,9 +41,51 @@ export default function HomePage() {
     setHistory(getHistory());
   }, []);
 
+  // Re-theme the UI to the selected team's colors
+  useEffect(() => {
+    applyTeamTheme(myTeamId || "DAL");
+  }, [myTeamId]);
+
+  // Load the selected team's schedule whenever the team changes
+  useEffect(() => {
+    if (!myTeamId) return;
+    setScheduleLoading(true);
+    setSchedule([]);
+    setSelectedGameId("");
+    setOpponentId("");
+    fetch(`/api/nhl?action=schedule&abbrev=${myTeamId}`)
+      .then((r) => r.json())
+      .then((d) => setSchedule(d.schedule ?? []))
+      .catch(() => setError("Failed to load schedule — check NHL API connection"))
+      .finally(() => setScheduleLoading(false));
+  }, [myTeamId]);
+
   const myTeam   = teams.find((t) => t.id === myTeamId);
   const opponent = teams.find((t) => t.id === opponentId);
-  const canGenerate = !loading && !!myTeamId && !!opponentId && myTeamId !== opponentId;
+  const selectedGame = schedule.find((g) => String(g.id) === selectedGameId);
+
+  // Selecting a scheduled game pre-populates opponent, side, date, report type,
+  // and (for completed games) the final score.
+  function handleSelectGame(id: string) {
+    setSelectedGameId(id);
+    setError("");
+    const g = schedule.find((x) => String(x.id) === id);
+    if (!g) return;
+    setOpponentId(g.opponent);
+    setMyTeamSide(g.myTeamSide);
+    setGameDate(g.date);
+    if (g.played) {
+      setReportType("postgame");
+      setMyScore(g.myScore !== undefined ? String(g.myScore) : "");
+      setOppScore(g.oppScore !== undefined ? String(g.oppScore) : "");
+    } else {
+      setReportType("pregame");
+      setMyScore("");
+      setOppScore("");
+    }
+  }
+
+  const canGenerate = !loading && !!myTeamId && !!selectedGame && !!opponentId;
 
   async function handleGenerate() {
     if (!canGenerate || !myTeam || !opponent) return;
@@ -136,8 +184,8 @@ export default function HomePage() {
       <div style={{
         position: "fixed", inset: 0, pointerEvents: "none", zIndex: 0,
         backgroundImage: `
-          radial-gradient(ellipse 60% 50% at 15% 60%, rgba(0,104,71,0.07) 0%, transparent 70%),
-          radial-gradient(ellipse 40% 35% at 85% 15%, rgba(200,168,75,0.04) 0%, transparent 60%)`,
+          radial-gradient(ellipse 60% 50% at 15% 60%, var(--accent-dim) 0%, transparent 70%),
+          radial-gradient(ellipse 40% 35% at 85% 15%, var(--gold-dim) 0%, transparent 60%)`,
       }} />
       <div style={{ position: "fixed", top: 0, left: 0, right: 0, height: "2px", zIndex: 100, background: "linear-gradient(90deg, transparent, var(--accent) 30%, var(--gold) 70%, transparent)" }} />
 
@@ -152,10 +200,6 @@ export default function HomePage() {
           <StarIcon size={20} color="var(--accent)" />
           <span style={{ fontFamily: "var(--font-display)", fontSize: "1.4rem", fontWeight: 800, letterSpacing: "0.16em", textTransform: "uppercase" }}>
             Ice<span style={{ color: "var(--accent-bright)" }}>Sight</span>
-          </span>
-          <div style={{ width: "1px", height: "16px", background: "var(--border-bright)" }} />
-          <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.58rem", color: "var(--gold)", background: "rgba(200,168,75,0.1)", border: "1px solid rgba(200,168,75,0.2)", padding: "2px 6px", borderRadius: "2px", letterSpacing: "0.12em" }}>
-            DALLAS STARS ANALYTICS
           </span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
@@ -260,55 +304,77 @@ export default function HomePage() {
 
             <div style={{ padding: "2rem", display: "flex", flexDirection: "column", gap: "1.5rem" }}>
 
-              {/* Report type toggle */}
+              {/* Report type toggle — gated by whether the selected game has been played */}
               <div>
                 <label style={labelStyle}>Report Type</label>
                 <div style={{ display: "flex", gap: "0.4rem" }}>
-                  {(["pregame", "postgame"] as const).map((type) => (
-                    <button key={type} onClick={() => setReportType(type)} style={{
-                      flex: 1, padding: "0.65rem",
-                      background: reportType === type ? "var(--accent)" : "var(--surface-2)",
-                      color: reportType === type ? "#fff" : "var(--text-muted)",
-                      border: `1px solid ${reportType === type ? "var(--accent)" : "var(--border)"}`,
-                      borderRadius: "5px", fontFamily: "var(--font-display)", fontWeight: 700,
-                      fontSize: "0.85rem", letterSpacing: "0.1em", textTransform: "uppercase",
-                      cursor: "pointer", transition: "all 0.12s",
-                      boxShadow: reportType === type ? "0 0 12px rgba(0,104,71,0.25)" : "none",
-                    }}>
-                      {type === "pregame" ? "⚡ Pre-Game" : "📋 Post-Game"}
-                    </button>
+                  {(["pregame", "postgame"] as const).map((type) => {
+                    // Pre-game only for upcoming games; post-game only for completed games.
+                    const disabled = selectedGame
+                      ? (type === "pregame" ? selectedGame.played : !selectedGame.played)
+                      : false;
+                    const active = reportType === type && !disabled;
+                    return (
+                      <button key={type} disabled={disabled}
+                        onClick={() => !disabled && setReportType(type)}
+                        title={disabled
+                          ? (type === "pregame"
+                              ? "This game has already been played — choose Post-Game"
+                              : "This game hasn't been played yet — choose Pre-Game")
+                          : ""}
+                        style={{
+                          flex: 1, padding: "0.65rem",
+                          background: active ? "var(--accent)" : "var(--surface-2)",
+                          color: active ? "#fff" : disabled ? "var(--text-dim)" : "var(--text-muted)",
+                          border: `1px solid ${active ? "var(--accent)" : "var(--border)"}`,
+                          borderRadius: "5px", fontFamily: "var(--font-display)", fontWeight: 700,
+                          fontSize: "0.85rem", letterSpacing: "0.1em", textTransform: "uppercase",
+                          cursor: disabled ? "not-allowed" : "pointer", transition: "all 0.12s",
+                          opacity: disabled ? 0.4 : 1,
+                          boxShadow: active ? "0 0 12px var(--accent-glow)" : "none",
+                        }}>
+                        {type === "pregame" ? "⚡ Pre-Game" : "📋 Post-Game"}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Our team */}
+              <SelectField label="Our Team" value={myTeamId} onChange={setMyTeamId} teams={teams} />
+
+              {/* Scheduled game — drives opponent, side, date, score */}
+              <div>
+                <label style={labelStyle}>
+                  Game
+                  <span style={{ marginLeft: "0.5rem", color: "var(--text-dim)", fontWeight: 400, textTransform: "none", letterSpacing: 0, fontSize: "0.65rem" }}>
+                    {scheduleLoading ? "loading schedule…" : `${schedule.length} on schedule`}
+                  </span>
+                </label>
+                <select
+                  value={selectedGameId}
+                  onChange={(e) => handleSelectGame(e.target.value)}
+                  disabled={!myTeamId || scheduleLoading || schedule.length === 0}
+                  style={{ ...inputStyle, cursor: (!myTeamId || scheduleLoading || schedule.length === 0) ? "not-allowed" : "pointer", opacity: (!myTeamId || scheduleLoading) ? 0.6 : 1 }}
+                >
+                  <option value="">
+                    {!myTeamId ? "Select a team first…"
+                      : scheduleLoading ? "Loading schedule…"
+                      : schedule.length === 0 ? "No scheduled games found"
+                      : "Select a scheduled game…"}
+                  </option>
+                  {schedule.map((g) => (
+                    <option key={g.id} value={String(g.id)}>{formatGameOption(g)}</option>
                   ))}
-                </div>
-              </div>
-
-              {/* Teams */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
-                <SelectField label="Our Team" value={myTeamId} onChange={setMyTeamId} teams={teams} exclude={opponentId} />
-                <SelectField label="Opponent"  value={opponentId} onChange={setOpponentId} teams={teams} exclude={myTeamId} />
-              </div>
-
-              {/* Side + Date */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
-                <div>
-                  <label style={labelStyle}>We Are Playing</label>
-                  <div style={{ display: "flex", gap: "0.4rem" }}>
-                    {(["home", "away"] as const).map((side) => (
-                      <button key={side} onClick={() => setMyTeamSide(side)} style={{
-                        flex: 1, padding: "0.6rem",
-                        background: myTeamSide === side ? "var(--accent)" : "var(--surface-2)",
-                        color: myTeamSide === side ? "#fff" : "var(--text-muted)",
-                        border: `1px solid ${myTeamSide === side ? "var(--accent)" : "var(--border)"}`,
-                        borderRadius: "5px", fontFamily: "var(--font-display)", fontWeight: 700,
-                        fontSize: "0.85rem", letterSpacing: "0.1em", textTransform: "uppercase",
-                        cursor: "pointer", transition: "all 0.12s",
-                      }}>{side}</button>
-                    ))}
+                </select>
+                {selectedGame && (
+                  <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.62rem", color: "var(--text-dim)", marginTop: "0.45rem", letterSpacing: "0.04em" }}>
+                    {formatShortDate(selectedGame.date)} · {selectedGame.myTeamSide === "home" ? "Home" : "Away"} game vs {selectedGame.opponentName}
+                    {selectedGame.played
+                      ? " · already played — post-game debrief"
+                      : selectedGame.live ? " · in progress" : " · upcoming — pre-game report"}
                   </div>
-                </div>
-                <div>
-                  <label style={labelStyle}>Game Date</label>
-                  <input type="date" value={gameDate} onChange={(e) => setGameDate(e.target.value)} style={inputStyle} />
-                </div>
+                )}
               </div>
 
               {/* Post-game: score + notes */}
@@ -316,12 +382,18 @@ export default function HomePage() {
                 <>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
                     <div>
-                      <label style={labelStyle}>Our Score</label>
-                      <input type="number" min="0" max="20" value={myScore} onChange={(e) => setMyScore(e.target.value)} placeholder="0" style={inputStyle} />
+                      <label style={labelStyle}>
+                        Our Score
+                        <span style={{ marginLeft: "0.5rem", color: "var(--text-dim)", fontWeight: 400, textTransform: "none", letterSpacing: 0, fontSize: "0.65rem" }}>auto-filled</span>
+                      </label>
+                      <input type="number" value={myScore} readOnly placeholder="—" style={{ ...inputStyle, cursor: "default", color: "var(--text)" }} />
                     </div>
                     <div>
-                      <label style={labelStyle}>Opponent Score</label>
-                      <input type="number" min="0" max="20" value={oppScore} onChange={(e) => setOppScore(e.target.value)} placeholder="0" style={inputStyle} />
+                      <label style={labelStyle}>
+                        Opponent Score
+                        <span style={{ marginLeft: "0.5rem", color: "var(--text-dim)", fontWeight: 400, textTransform: "none", letterSpacing: 0, fontSize: "0.65rem" }}>auto-filled</span>
+                      </label>
+                      <input type="number" value={oppScore} readOnly placeholder="—" style={{ ...inputStyle, cursor: "default", color: "var(--text)" }} />
                     </div>
                   </div>
                   <div>
@@ -364,8 +436,12 @@ export default function HomePage() {
                     <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.58rem", color: "var(--text-muted)", textTransform: "uppercase" }}>{myTeamSide}</div>
                   </div>
                   <div style={{ textAlign: "center" }}>
-                    <div style={{ fontFamily: "var(--font-display)", fontSize: "1.4rem", fontWeight: 900, color: "var(--gold)" }}>VS</div>
-                    <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.55rem", color: "var(--text-dim)" }}>{gameDate}</div>
+                    {selectedGame?.played && myScore !== "" && oppScore !== "" ? (
+                      <div style={{ fontFamily: "var(--font-display)", fontSize: "1.4rem", fontWeight: 900, color: "var(--gold)" }}>{myScore}–{oppScore}</div>
+                    ) : (
+                      <div style={{ fontFamily: "var(--font-display)", fontSize: "1.4rem", fontWeight: 900, color: "var(--gold)" }}>VS</div>
+                    )}
+                    <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.55rem", color: "var(--text-dim)" }}>{formatShortDate(gameDate)}</div>
                   </div>
                   <div style={{ textAlign: "right" }}>
                     <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.58rem", color: "var(--text-muted)", letterSpacing: "0.15em", marginBottom: "3px" }}>OPPONENT</div>
@@ -383,14 +459,14 @@ export default function HomePage() {
               {/* Generate */}
               <button onClick={handleGenerate} disabled={!canGenerate} style={{
                 padding: "1rem 1.5rem",
-                background: canGenerate ? "linear-gradient(135deg, #006847, #008a5e)" : "var(--surface-3)",
+                background: canGenerate ? "linear-gradient(135deg, var(--accent), var(--accent-light))" : "var(--surface-3)",
                 color: canGenerate ? "#fff" : "var(--text-dim)",
                 border: `1px solid ${canGenerate ? "var(--accent)" : "var(--border)"}`,
                 borderRadius: "7px", fontFamily: "var(--font-display)", fontWeight: 800,
                 fontSize: "1.05rem", letterSpacing: "0.12em", textTransform: "uppercase",
                 cursor: canGenerate ? "pointer" : "not-allowed", transition: "all 0.15s",
                 display: "flex", alignItems: "center", justifyContent: "center", gap: "0.65rem",
-                boxShadow: canGenerate ? "0 4px 24px rgba(0,104,71,0.25)" : "none",
+                boxShadow: canGenerate ? "0 4px 24px var(--accent-glow)" : "none",
               }}>
                 {loading ? (
                   <>
@@ -423,6 +499,31 @@ export default function HomePage() {
       `}</style>
     </div>
   );
+}
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+// "2025-10-09" → "Oct 9" (parsed manually to avoid timezone shifts)
+function formatShortDate(iso: string): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  if (!y || !m || !d) return iso;
+  return `${MONTHS[m - 1]} ${d}`;
+}
+
+// Build the dropdown label for a scheduled game, e.g.
+//   "Oct 9 · @ Winnipeg Jets · Final L 4-5"  or  "Mar 2 · vs Toronto Maple Leafs · Scheduled"
+function formatGameOption(g: ScheduledGame): string {
+  const side = g.myTeamSide === "home" ? "vs" : "@";
+  let status: string;
+  if (g.played && g.myScore !== undefined && g.oppScore !== undefined) {
+    const res = g.myScore > g.oppScore ? "W" : (g.outcome === "OT" || g.outcome === "SO" ? "OTL" : "L");
+    status = `Final ${res} ${g.myScore}-${g.oppScore}`;
+  } else if (g.live) {
+    status = "Live";
+  } else {
+    status = "Scheduled";
+  }
+  return `${formatShortDate(g.date)} · ${side} ${g.opponentName} · ${status}`;
 }
 
 function StarIcon({ size = 20, color = "currentColor" }: { size?: number; color?: string }) {

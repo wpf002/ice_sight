@@ -1,4 +1,4 @@
-import { NHLGame, NHLGoalie, NHLSkater, NHLTeam, TeamFaceoffStats, SkaterFaceoff, TeamPersonnel, HeadToHeadRecord } from "@/types";
+import { NHLGame, NHLGoalie, NHLSkater, NHLTeam, TeamFaceoffStats, SkaterFaceoff, TeamPersonnel, HeadToHeadRecord, ScheduledGame } from "@/types";
 
 const NHL_API   = "https://api-web.nhle.com/v1";
 const NHL_STATS = "https://api.nhle.com/stats/rest/en";
@@ -311,6 +311,52 @@ export async function getRecentGames(teamAbbrev: string, count = 10): Promise<NH
   }
 
   return games.slice(0, count).reverse(); // return oldest → newest
+}
+
+// ── Full season schedule ───────────────────────────────────────────────────
+// Returns every regular-season + playoff game on a team's schedule, with the
+// opponent, home/away side, and (for completed games) the final score. This is
+// the source of truth for the matchup picker: users select a real scheduled
+// game rather than free-typing an opponent/date.
+export async function getSchedule(teamAbbrev: string): Promise<ScheduledGame[]> {
+  const abbrev = teamAbbrev.toUpperCase();
+  const season = currentSeasonId();
+
+  const res = await fetch(`${NHL_API}/club-schedule-season/${abbrev}/${season}`, { next: { revalidate: 3600 } });
+  if (!res.ok) throw new Error(`NHL schedule fetch failed: ${res.status}`);
+  const data = await res.json();
+
+  const games = (data.games as Record<string, unknown>[] ?? []).filter((g) => {
+    const type = g.gameType as number;
+    return type === 2 || type === 3; // regular season + playoffs (exclude preseason)
+  });
+
+  return games.map((g) => {
+    const home = g.homeTeam as { abbrev: string; placeName?: { default: string }; commonName?: { default: string }; score?: number };
+    const away = g.awayTeam as { abbrev: string; placeName?: { default: string }; commonName?: { default: string }; score?: number };
+    const isHome = home.abbrev === abbrev;
+    const me  = isHome ? home : away;
+    const opp = isHome ? away : home;
+
+    const state  = g.gameState as string;
+    const played = state === "OFF" || state === "FINAL";
+    const live   = state === "LIVE" || state === "CRIT";
+
+    const oppName = [opp.placeName?.default, opp.commonName?.default].filter(Boolean).join(" ") || opp.abbrev;
+
+    return {
+      id:          g.id as number,
+      date:        g.gameDate as string,
+      opponent:    opp.abbrev,
+      opponentName: oppName,
+      myTeamSide:  isHome ? "home" : "away",
+      played,
+      live,
+      myScore:     played ? (me.score  ?? undefined) : undefined,
+      oppScore:    played ? (opp.score ?? undefined) : undefined,
+      outcome:     (g.gameOutcome as { lastPeriodType?: string } | undefined)?.lastPeriodType,
+    } as ScheduledGame;
+  });
 }
 
 // ── Head-to-head season series ─────────────────────────────────────────────

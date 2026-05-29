@@ -88,9 +88,15 @@ const VALIDATOR_SYSTEM = `You are a quality-control checker for internal NHL sco
 3. Last-N arithmetic: Find ALL "last [number]" phrases (e.g. "last five", "last 10", "last three"). For each, locate the W-L-OT record nearby. Add W+L+OT. If the sum ≠ N, flag it. Examples: "5-1 run over their last five" → 5+1=6 ≠ 5 → flag. "6W-2L-1OT over his last nine" → 9=9 → OK.
 4. Post-game conditional speculation: In a POST-GAME report (look for "Post-Game Debrief" in the content), find any sentence using conditional or probabilistic past-tense framing about game events: "if he was deployed", "if he was held off", "if his opportunities were not created", "was likely on the ice for [goals]", "was probably on the ice". These are guesses about a completed game and are forbidden. Flag each instance.
 
-Return ONLY valid JSON — no explanation, no commentary:
-- If no issues: {"valid":true}
-- If issues found: {"valid":false,"issues":["concise description of issue 1","concise description of issue 2",...]}`;
+Output rules — follow exactly:
+- Respond with raw JSON only. No markdown, no code fences, no prose before or after.
+- ONLY include an entry for a GENUINE violation. Never add an entry that concludes there is no problem. Do NOT include items that "check out", are "consistent", "correct", or "OK" — if it's fine, leave it out entirely.
+- Each issue is ONE short sentence naming the problem and quoting the offending phrase. No arithmetic shown, no reasoning, no checkmarks, no "however"/"but on recount" hedging.
+- If there are zero genuine violations, return {"valid":true} with no issues array.
+
+Format:
+- No issues: {"valid":true}
+- Issues found: {"valid":false,"issues":["<one short sentence per real violation>", ...]}`;
 
 /**
  * Deterministic phrase scanner — catches rule violations that are exact string matches.
@@ -192,7 +198,49 @@ function scanBannedPhrases(text: string): string[] {
 const CORRECTOR_SYSTEM = `You are editing an internal NHL scouting report to fix specific identified issues. Rules:
 - Fix ONLY the sentences containing the listed issues. Change nothing else.
 - Preserve all markdown formatting exactly: bold (**text**), ## headers, ### sub-headers, bullet points, table structure.
-- Return the complete corrected report with no preamble or commentary.`;
+- Output ONLY the corrected report, wrapped exactly in <report> and </report> tags. Put NOTHING outside the tags — no analysis, no reasoning, no explanation of what you changed, no preamble. The text immediately inside <report> must begin with the first line of the report itself.`;
+
+/**
+ * Strip a markdown code fence (```json … ``` or ``` … ```) from a model
+ * response so JSON.parse can read it. Returns the inner text, trimmed.
+ */
+function stripCodeFence(text: string): string {
+  const t = text.trim();
+  const m = t.match(/^```(?:json)?\s*\n?([\s\S]*?)\n?```$/);
+  return (m ? m[1] : t).trim();
+}
+
+/**
+ * Parse the Haiku validator's JSON response robustly. The model frequently
+ * wraps its JSON in a markdown fence; it may also emit stray text around it.
+ * Strips the fence, then falls back to extracting the first {...} object.
+ */
+function parseValidatorResponse(text: string): { valid: boolean; issues?: string[] } {
+  const cleaned = stripCodeFence(text);
+  try {
+    return JSON.parse(cleaned);
+  } catch {
+    const start = cleaned.indexOf("{");
+    const end   = cleaned.lastIndexOf("}");
+    if (start !== -1 && end > start) {
+      return JSON.parse(cleaned.slice(start, end + 1));
+    }
+    throw new Error("validator returned non-JSON output");
+  }
+}
+
+/**
+ * Extract the corrected report from between <report>…</report> tags. The
+ * corrector is instructed to wrap its output so any leaked chain-of-thought
+ * stays outside the tags and is discarded. Returns null if the tags are
+ * missing (caller keeps the previous, un-leaked body rather than shipping
+ * raw model reasoning).
+ */
+function extractCorrectedReport(text: string): string | null {
+  const m = text.match(/<report>\s*([\s\S]*?)\s*<\/report>/i);
+  if (m && m[1].trim().length > 0) return m[1].trim();
+  return null;
+}
 
 /**
  * Deterministic post-processor for grammar errors that don't need an LLM.
@@ -287,9 +335,16 @@ async function generateReport(input: ReportInput): Promise<Response> {
       validation.content[0].type === "text"
         ? validation.content[0].text.trim()
         : '{"valid":true}';
-    const result = JSON.parse(validationText);
+    const result = parseValidatorResponse(validationText);
     if (!result.valid && Array.isArray(result.issues)) {
-      semanticIssues = result.issues;
+      // Guard: the validator occasionally appends an entry that reasons its way
+      // to "no violation" (e.g. "…6+2+1=9 ✓, so no violation here"). Drop any
+      // entry whose text signals a non-violation so it never reaches the
+      // corrector, regardless of model verbosity.
+      const NON_VIOLATION = /no violation|no error|no issue|checks out|✓|is correct|are correct|consistent|rechecking|so no/i;
+      semanticIssues = result.issues.filter(
+        (s: unknown): s is string => typeof s === "string" && !NON_VIOLATION.test(s)
+      );
     }
     console.log(`${tag} Haiku done ${elapsed()} — valid=${result.valid}${semanticIssues.length ? ", issues: " + semanticIssues.join("; ") : ""}`);
   } catch (err) {
@@ -316,13 +371,18 @@ async function generateReport(input: ReportInput): Promise<Response> {
         messages: [
           {
             role: "user",
-            content: `Report:\n\n${rawBody}\n\nIssues to fix:\n${issueList}\n\nReturn the complete corrected report.`,
+            content: `Report:\n\n${rawBody}\n\nIssues to fix:\n${issueList}\n\nReturn the complete corrected report wrapped in <report></report> tags.`,
           },
         ],
       });
 
-      if (correction.content[0].type === "text") {
-        finalBody = correction.content[0].text;
+      const corrected =
+        correction.content[0].type === "text"
+          ? extractCorrectedReport(correction.content[0].text)
+          : null;
+
+      if (corrected) {
+        finalBody = corrected;
         console.log(`${tag} Pass 3 done ${elapsed()} — correction applied`);
 
         // Re-scan corrected output — corrector can reintroduce banned phrases
@@ -340,12 +400,18 @@ async function generateReport(input: ReportInput): Promise<Response> {
               system: CORRECTOR_SYSTEM,
               messages: [{
                 role: "user",
-                content: `Report:\n\n${finalBody}\n\nIssues to fix:\n${residualList}\n\nReturn the complete corrected report.`,
+                content: `Report:\n\n${finalBody}\n\nIssues to fix:\n${residualList}\n\nReturn the complete corrected report wrapped in <report></report> tags.`,
               }],
             });
-            if (correction2.content[0].type === "text") {
-              finalBody = correction2.content[0].text;
+            const corrected2 =
+              correction2.content[0].type === "text"
+                ? extractCorrectedReport(correction2.content[0].text)
+                : null;
+            if (corrected2) {
+              finalBody = corrected2;
               console.log(`${tag} Pass 3b done ${elapsed()} — residual correction applied`);
+            } else {
+              console.warn(`${tag} Pass 3b produced no <report> tags — keeping Pass 3 body`);
             }
           } catch (err2) {
             console.warn(`${tag} Pass 3b failed ${elapsed()} —`, err2 instanceof Error ? err2.message : err2);
@@ -353,6 +419,12 @@ async function generateReport(input: ReportInput): Promise<Response> {
         } else {
           console.log(`${tag} Re-scan clean — no residual issues`);
         }
+      } else {
+        // Corrector leaked reasoning / omitted tags — ship the clean, uncorrected
+        // body rather than the model's deliberation. Phrase issues remain but the
+        // output is at least a clean report.
+        console.warn(`${tag} Pass 3 produced no <report> tags — keeping uncorrected body`);
+        finalBody = rawBody;
       }
     } catch (err) {
       console.warn(`${tag} Pass 3 failed ${elapsed()} —`, err instanceof Error ? err.message : err);
