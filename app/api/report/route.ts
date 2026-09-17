@@ -308,13 +308,19 @@ async function generateReport(input: ReportInput): Promise<Response> {
     model: "claude-sonnet-4-6",
     max_tokens: 4096,
     temperature: 0,
-    system: SYSTEM,
+    // SYSTEM is ~7,850 tokens and identical for every report, but was billed at full
+    // price on each one. Reports are generated as people open game pages, which bunch
+    // up around game time, so consecutive reports read it back at ~0.1x. A write with
+    // no read inside five minutes costs ~$0.006; a read saves ~$0.021.
+    // SDK 0.24 predates GA caching in its types; the field passes through at runtime
+    // and the API needs no beta header.
+    system: [{ type: "text", text: SYSTEM, cache_control: { type: "ephemeral" } } as Anthropic.TextBlockParam],
     messages: [{ role: "user", content: prompt }],
   });
 
   const rawBody =
     generation.content[0].type === "text" ? generation.content[0].text : "";
-  console.log(`${tag} Pass 1 done ${elapsed()} — ${rawBody.length} chars, stop=${generation.stop_reason}, tokens in=${generation.usage.input_tokens} out=${generation.usage.output_tokens}`);
+  console.log(`${tag} Pass 1 done ${elapsed()} — ${rawBody.length} chars, stop=${generation.stop_reason}, tokens in=${generation.usage.input_tokens} (uncached; cache read=${(generation.usage as { cache_read_input_tokens?: number }).cache_read_input_tokens ?? 0} write=${(generation.usage as { cache_creation_input_tokens?: number }).cache_creation_input_tokens ?? 0}) out=${generation.usage.output_tokens}`);
 
   // Deterministic phrase scan — runs in-process, no LLM, no latency cost
   const phraseIssues = scanBannedPhrases(rawBody);
